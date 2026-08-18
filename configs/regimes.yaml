@@ -1,0 +1,41 @@
+# Regime labeling configuration.
+# All thresholds here are tunable; nothing regime-related is hardcoded in code.
+#
+# Definitions (applied daily, in priority order):
+#   crisis  : trailing realized vol (20d, annualized) >= the `percentile`-th
+#             percentile of ALL vol history up to that day (EXPANDING window,
+#             not trailing N days — a long crisis cannot raise its own bar).
+#             Overrides bull/bear.
+#   bull    : trailing 60d return >  +bull_threshold
+#   bear    : trailing 60d return <  -bear_threshold
+#   neutral : |trailing 60d return| <= threshold -> falls back to sign of
+#             the trailing return (weak bull/bear). Set thresholds to 0.0
+#             for a pure sign rule, or to e.g. 0.05 to require magnitude.
+
+regimes:
+  lookback_return_days: 60
+  bull_threshold: 0.0        # fraction, e.g. 0.05 = +5% over 60d
+  bear_threshold: 0.0        # fraction, symmetric magnitude gate
+
+  crisis:
+    vol_window_days: 20      # realized vol estimation window
+    percentile: 95.0
+    # Expanding window: the quantile is computed over all vol history from
+    # the start of the series up to each day. min_periods is the amount of
+    # history required before a crisis threshold exists at all. Too small =>
+    # q95 of a handful of obs ~= current vol and the threshold fires on noise
+    # (spurious crisis). 300 days (~15 months) is a conservative boot.
+    percentile_min_periods: 300
+    min_vol_annualized: 0.02      # absolute floor: vol below this can never be "crisis"
+
+  hysteresis:
+    # Crisis must persist `crisis_confirmation_days` consecutive days to *enter*,
+    # and must drop below `exit_mult * entry_threshold` for the same number
+    # of days to *exit* (asymmetric band). The entry threshold is FROZEN at
+    # crisis entry: exit never uses the live (possibly elevated) threshold.
+    crisis_confirmation_days: 2
+    crisis_exit_mult: 0.8
+    # Any labeled run shorter than this is merged into its neighbor(s),
+    # eliminating single-day flicker. Runs are merged shortest-first until
+    # every run satisfies the minimum duration.
+    min_regime_duration_days: 5

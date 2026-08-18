@@ -1,0 +1,51 @@
+# TACR (Model C) shared config — Lee & Moon, "Transformer Actor-Critic with
+# Regularization: Automated Stock Trading using Reinforcement Learning",
+# IEEE Access 2023 (DOI 10.1109/ACCESS.2023.3324458; AAMAS 2023 version;
+# authors' code: github.com/VarML/TACR).
+#
+# Values default to the authors' setup for the single-index daily datasets
+# (NDX/MDAX/CSI family): u=20, embed 128, n_head=1, n_inner=4*embed, relu,
+# dropout 0.1, lr 1e-4, weight_decay 1e-4, warmup 10k, alpha=0.9,
+# critic_lr 1e-6, gamma 0.99, tau 0.005. Deviations from the paper are
+# flagged in the file docstrings + PROJECT_NOTES 7.6:
+#   - n_layer: paper 5, we default 4 (user spec range 3-4).
+#   - action head: paper Linear+Softmax (discrete portfolio weights); ours
+#     Linear+tanh (continuous [-1,1] action space — necessary adaptation).
+#   - return channel: paper's code embeds the immediate reward; we embed the
+#     true return-to-go (cumulative future reward) per the project spec.
+#   - eval-time RTG: constant 0.0 (the paper's eval feeds zeros).
+#   - training budget: paper 40k steps; ours 3k steps (epochs 10 x 300,
+#     batch 64 => 192k samples = 12 passes over our 15.9k transitions;
+#     the paper's 2.56M samples covered its ~5-13k-transition datasets in
+#     ~200-500 passes, an artifact of GPU budgeting; 12 passes is the
+#     offline-RL norm for small daily-return datasets). Warmup scaled
+#     10k -> 1k (paper's warmup alone exceeds our total step count).
+#     CPU wall-clock: ~5-6 min/epoch/seed; seeds run 2-parallel.
+model:
+  u: 20                # context length (MDP triples); == WINDOW_DAYS for the B/C comparison
+  embed_dim: 128
+  n_layer: 4           # paper 5; user spec default range 3-4 (documented deviation)
+  n_head: 1            # paper
+  n_inner: 512         # paper: 4 * embed_dim
+  dropout: 0.1         # paper
+  max_ep_len: 5283     # longest behavior-policy trajectory (embed_timestep size)
+  action_head: tanh    # linear+tanh (continuous adaptation of paper's linear+softmax)
+
+training:
+  epochs: 10           # val-eval cadence; 10 x 300 = 3k steps (paper: 40k; see header)
+  steps_per_epoch: 300
+  batch_size: 64       # paper
+  lr: 0.0001           # paper
+  weight_decay: 0.0001 # paper
+  warmup_steps: 1000   # paper 10k (40k-step schedule); scaled to our 3k-step budget
+  grad_clip: 0.25      # paper
+  alpha: 0.9           # paper's BC-regularization coefficient (NDX/MDAX/CSI family)
+  gamma: 0.99          # paper
+  tau: 0.005           # paper (target-network polyak)
+  critic_lr: 0.000001  # paper default for NDX/MDAX/CSI
+  seed: 20260814
+  device: cpu
+
+eval:
+  rtg_target: 0.0      # constant return-to-go at val/test rolls (paper feeds zeros)
+  checkpoint_dir: checkpoints/tacr   # relative to src/models/tacr/

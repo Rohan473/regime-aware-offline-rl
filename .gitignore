@@ -1,0 +1,25 @@
+# Raw market data (downloader writes yearly SPY_*.parquet into repo root)
+SPY_*.parquet
+spy_tmp/
+_progress.txt
+
+# Cached / derived data
+data/raw/
+data/processed/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Notebooks
+notebooks/.ipynb_checkpoints/
+
+# Trained model artifacts (weights, logs, predictions)
+src/models/*/checkpoints/
+checkpoints/

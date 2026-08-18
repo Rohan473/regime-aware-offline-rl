@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "regime-uncertainty-rl"
+version = "0.1.0"
+description = "Regime-Aware Uncertainty Modeling for Offline RL in Financial Markets"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy==1.26.3",
+    "pandas==3.0.5",
+    "pyarrow==23.0.1",
+    "scipy==1.18.0",
+    "statsmodels==0.14.6",
+    "pandas-ta-openbb==0.4.24",
+    "omegaconf==2.3.1",
+    "PyYAML==6.0.3",
+    "torch==2.12.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.5", "pytest-cov==6.0.0"]
+# Offline RL algorithms for Models C/D (CQL/IQL). Not installed yet:
+# the exact library (d3rlpy vs CORL) is an open decision — see README.
+rl = ["d3rlpy>=2.3,<3"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
+asyncio_default_fixture_loop_scope = "function"

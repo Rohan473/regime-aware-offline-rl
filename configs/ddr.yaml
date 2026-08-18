@@ -1,0 +1,28 @@
+# Shared Model B (DDR) configuration. Loaded by configs -> DDRConfig.from_yaml()
+# in train/eval entry points. window_size is intentionally absent: it is the
+# shared WINDOW_DAYS constant in src/models/__init__.py (B/C/D must agree).
+#
+# vol-targeting (the reward fix): before the DSR increment is computed, each
+# action is scaled to a target annualized volatility of the strategy-return
+# series (a_t * ret_{t+1}), clipped to +-max_leverage. The DSR sees the
+# vol-targeted returns, so the policy cannot game the reward by shrinking
+# |a_t| (variance-reduction shortcut) -- the scaling step re-amplifies it.
+model:
+  hidden_size: 32
+  rnn_type: "gru"            # "gru" | "lstm"
+  eta: 0.01                  # DSR EMA adaptation rate (Moody-Saffell range)
+  warmup_steps: 20           # DSR steps before D_t is emitted
+  lr: 0.001
+  epochs: 30
+  seed: 20260814
+  transaction_cost_bps: 0.0
+
+  # --- volatility-targeted DSR reward (reward fix) ---
+  vol_targeting: true        # false -> naive DSR on raw a_t * ret_{t+1}
+  target_vol: 0.15           # annualized; ~SPY long-run realized vol
+  vol_target_window: 20      # trailing (causal) window for realized vol
+  max_leverage: 2.0          # clip bounds for the vol-scaled action
+
+  # Vol-targeted runs write here so the OLD naive DSR checkpoint/results in
+  # checkpoints/ are preserved side by side.
+  checkpoint_dir: "checkpoints/vt"

@@ -1,0 +1,65 @@
+# Data pipeline configuration.
+# All directory paths below are resolved relative to the repository root
+# (the directory containing this file's parent).
+
+data:
+  # Raw data: yearly SPY_YYYY.parquet files produced by the downloader.
+  # The downloader currently writes them into the repo root (".").
+  # Set raw_dir to "data/raw" if you move the files later.
+  raw_dir: "."
+  raw_pattern: "SPY_*.parquet"
+  processed_dir: "data/processed"
+
+  universe: ["SPY"]
+
+  # Requested coverage. The loader uses whatever year files exist on disk
+  # (download is incremental); it warns loudly about missing years inside
+  # this range rather than failing, so re-running picks up new files.
+  start_date: "2005-01-01"
+  end_date: "2026-07-31"
+
+  # Raw files are 1-minute bars (timestamp UTC). Resampled to daily OHLCV.
+  resample:
+    timezone: "America/New_York"
+    open: "first"
+    high: "max"
+    low: "min"
+    close: "last"
+    volume: "sum"
+
+features:
+  price_col: "close"
+  returns: [1, 5, 20]
+  realized_vol_window: 20
+  rsi_window: 14
+  macd: { fast: 12, slow: 26, signal: 9 }
+  volume_zscore_window: 20
+  bollinger: { window: 20, num_std: 2.0 }
+  # Causal z-score of state features. Expanding uses data up to t only;
+  # "rolling" uses a trailing window (needs normalize_window).
+  normalize_state: true
+  normalize_mode: "expanding"   # "expanding" | "rolling"
+  normalize_window: 252
+  normalize_min_periods: 60
+
+regime_file: "configs/regimes.yaml"   # loaded separately; see regimes.yaml
+
+dataset:
+  # Rows whose features or regime are undefined during the warm-up period
+  # (first ~300 trading days on default regime config) are dropped from the
+  # offline dataset — never silently filled with 0 or synthetic values.
+  # The drop rule is: any NaN in a state feature or the regime column.
+  transaction_cost_bps: 0.0
+
+behavior_policies:
+  # Action is a scalar position/allocation in [position_min, position_max].
+  # Shorting is enabled: -1.0 = 100% short, +1.0 = 100% long, 0 = flat.
+  position_min: -1.0
+  position_max: 1.0
+  policies:
+    momentum:      { window: 20,   scale: 0.10 }
+    mean_reversion: { window: 5,    scale: 0.05 }
+    buy_and_hold:  { target_allocation: 1.0 }
+    random:        { }
+  # Seeded so policy trajectories are reproducible run-to-run.
+  seed: 20260814

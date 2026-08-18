@@ -1,0 +1,11 @@
+numpy==1.26.3
+pandas==3.0.5
+pyarrow==23.0.1
+scipy==1.18.0
+statsmodels==0.14.6
+pandas-ta-openbb==0.4.24
+omegaconf==2.3.1
+PyYAML==6.0.3
+pytest==8.3.5
+pytest-cov==6.0.0
+torch==2.12.0
