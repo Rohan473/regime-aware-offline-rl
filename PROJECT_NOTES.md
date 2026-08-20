@@ -786,6 +786,20 @@ headline. The chain is the deliverable.
       Do not cite "exposure level is load-bearing" or "penalty induces
       flipping" as confirmed claims; cite the bimodal breakdown + the
       weak-but-positive size->quality tail + the basin confound instead.
+    - EXPLICIT NEXT STEP (if the exposure question is ever revisited):
+      rerun with BASIN-CONTROLLED seeds. Screen multiple candidate seeds
+      into the good basin first (the existing rule: best-val epoch 3-5,
+      cross-seed corr > 0.6 vs the pack), then apply the penalty only to
+      confirmed-good-basin seeds. Five uncontrolled seeds cannot say
+      anything about exposure regularization; the confound must be
+      designed out, not post-hoc argued away.
+    - STRAY THREAD (flagged, not pursued): basin membership under
+      naive_new (DSR objective) predicting behavior under a DIFFERENT
+      objective (exposure-penalized DSR) suggests basin membership may
+      be a property of the feature representation or GRU initialization
+      that persists across loss functions — not just a quirk of the DSR
+      training dynamics. If Model D shows basin heterogeneity, check
+      whether it tracks B's basin structure before blaming D's objective.
     - MEAN-VARIANCE VARIANT (logged, NOT implemented — explicit
       separate variant per user): reward = E[r] - kappa * Var[r],
       replacing the DSR entirely (bigger, defensible departure from
