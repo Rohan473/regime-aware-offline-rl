@@ -761,13 +761,31 @@ headline. The chain is the deliverable.
           also scales with market volatility/opportunity, consistent
           with size encoding risk-aware conviction rather than pure
           noise.
+      (d) BASIN CONFOUND (from the existing ddr_basin_probe.py result,
+          not new computation): the rescue/collapse split aligns
+          EXACTLY with the naive_new basin structure. Canonical seed 4
+          is the documented outlier basin (cross-seed corr 0.33 vs
+          0.93-0.98 for seeds 20260814/1/2/3; late-spiking best-val
+          epoch 30 vs 3-5; naive test 0.513 vs 0.85-1.15 clean-day).
+          The ONLY exp seed that improved (4, 0.734) is precisely the
+          outlier-basin seed; the four good-basin seeds all
+          degraded/collapsed (0.31 / -0.65 / -0.20 / 0.28). So the exp
+          outcome is confounded with the starting basin: "the penalty
+          rescued seed 4" is NOT independent evidence for it — the
+          penalty moved an outlier from a weak basin to a mid basin
+          (0.734, still below the good-basin naive level) while
+          damaging every good-basin seed. And it cuts the other way: a
+          seed already in a good basin has the most to lose from level
+          interference. Either way: the exposure test does NOT tell us
+          whether exposure regularization helps conditional on basin —
+          it is entangled with it.
     - NET: canonical-B decision (naive_new unchanged) stands and is
       independent of the mechanism. The exposure-regularization variant
       is a seed-dependent interference effect — worse on 4 seeds,
       better on the weak seed 4 — NOT a clean fix, NOT a clean failure.
       Do not cite "exposure level is load-bearing" or "penalty induces
       flipping" as confirmed claims; cite the bimodal breakdown + the
-      weak-but-positive size->quality tail instead.
+      weak-but-positive size->quality tail + the basin confound instead.
     - MEAN-VARIANCE VARIANT (logged, NOT implemented — explicit
       separate variant per user): reward = E[r] - kappa * Var[r],
       replacing the DSR entirely (bigger, defensible departure from
