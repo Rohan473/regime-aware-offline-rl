@@ -2,7 +2,7 @@
 
 Research codebase comparing four models (B: DDR-style recurrent, C: TACR-style
 Transformer actor-critic, D: target model with fuzzy uncertainty layer + offline
-RL (CQL/IQL) + BC regularization, D-ablation: D minus the fuzzy layer) on
+RL (IQL) + BC regularization, D-ablation: D minus the fuzzy layer) on
 identical data and identical regime-conditional evaluation.
 
 **Current session scope (done):** repository scaffolding, data pipeline, regime

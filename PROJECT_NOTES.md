@@ -708,6 +708,20 @@ headline. The chain is the deliverable.
       Consequence: the Q-collapse failure mode of C is not addressed by
       a trust gate; it must be designed out of the objective instead
       (see below).
+    - RATIONALE (user, recorded): epistemic-uncertainty mechanisms are
+      entangled with the RL objective itself (CQL/IQL/PBS use
+      uncertainty to regularize or penalize Q-values), so layering one
+      on top of TACR's already-collapsing actor-critic would build D's
+      novel component on the part of the system with direct evidence of
+      instability. Fuzzy encoding is a representation-layer
+      intervention — it changes what enters the encoder, not how value
+      is computed — so the committed ablation (fuzzy-D vs D-minus-
+      fuzzy, same encoder/transformer/objective) is cleanly separable,
+      and it does not inherit C's failure surface. It is also
+      regime-interpretable by construction (membership over low/med/
+      high vol, bull/bear/crisis-adjacent), matching the project title
+      "regime-aware uncertainty modeling" natively, where an ensemble
+      would need a post-hoc correlation step to speak about regimes.
     - Carried from C's phase (binding): (1) no wholesale inheritance of
       TACR's actor-critic dynamics — Q-collapse is a known failure mode
       on this data; (2) final-epoch sanity check is a standing protocol
@@ -717,9 +731,19 @@ headline. The chain is the deliverable.
     - Open questions the D spec must answer (not yet decided):
       (a) objective — pure BC return-conditioned (DT-style, critic-free)
           vs BC+Q (redesigned: BC-dominant alpha, budgeted) vs IQL;
-          recommendation: critic-free DT first, given C's evidence;
+          [RESOLVED 2026-08-19 (user): D trains with IQL — expectile
+          regression on V + advantage-weighted policy extraction. The
+          AWR policy is data-anchored by construction and the Q-update
+          never samples OOD actions — both properties directly counter
+          C's Q-collapse; no C-shaped actor-critic loop. D and
+          D-minus-fuzzy share IQL, so the fuzzy layer stays the only
+          variable. (CQL rejected: conservatism penalty still requires
+          the actor-critic loop + OOD action sampling, structurally
+          close to the failed C surface.)]
       (b) return channel for conditioning — true RTG (C's deviation,
           kept per Phase-3 spec) vs immediate reward (authors' channel);
+          [RESOLVED 2026-08-19: MOOT under IQL — value-based objective
+          conditions implicitly via Q/V; there is no return channel.]
       (c) fuzzy layer design — which features are fuzzified, IT2 vs
           general T2, number of MFs, learned vs fixed MF parameters,
           and whether the layer outputs fuzzy features or rule-
