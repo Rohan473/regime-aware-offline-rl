@@ -491,8 +491,9 @@ headline. The chain is the deliverable.
       TACR; the failure is structural, and its mechanism is val->test
       transfer (below), not undertraining.
     - SCOPE OF THIS CLAIM (read before citing): "TACR-as-reproduced-here,
-      on this data" — SPY only; Model B's feature set (13 baseline
-      fields); context u=20 days; tanh-head discretized actions (OUR
+      on this data" — SPY only; Model B's feature set (the shared 8
+      FEATURE_COLUMNS fields, verified against src/data/
+      technical_factors.py); context u=20 days; tanh-head discretized actions (OUR
       implementation choice — the authors never specify an action head);
       alpha=0.9, the paper default; two critic-lr regimes (1e-6, 1e-4).
       Varied: seed (5), budget (3k/20k), critic lr. NOT varied: asset,
@@ -864,6 +865,33 @@ headline. The chain is the deliverable.
       (e) budget/warmup policy — C showed longer training hurt the
           critic objective; BC-only may scale differently, so the spec
           should pre-register a budget re-check like C's (7.6.2).
+    - RESOLVED FORKS (user, 2026-08-19; spec to be written by the user):
+      (c) FUZZY LAYER: IT2 (interval type-2, UMF/LMF) over a 3-feature
+          interpretable core — realized_vol_20d, ret_20d (momentum),
+          rsi_14 — into low/medium/high; MF parameters FIXED (Gaussian
+          footprints), so the ablation isolates fuzzification itself.
+          Output: 3 feats x 3 sets x 2 bounds = 18 membership values per
+          timestep, concatenated onto the raw 8-feature state.
+          EMBEDDING CHECK (verified against C's code): C's per-token
+          input dim is 8 (shared FEATURE_COLUMNS: ret_1d/5d/20d,
+          realized_vol_20d, rsi_14, macd_hist, volume_zscore_20d,
+          bollinger_pos) with embed_dim 128, n_layer 4, n_inner 512.
+          D's token input becomes 8 + 18 = 26 -> the ONLY change is the
+          input projection Linear(26 -> 128); embed/n_inner/n_layer
+          stay identical to C. The fuzzified three are already among
+          the raw 8, so no new information source is introduced — only
+          a derived, regime-legible representation. No second silent
+          deviation rides in with this choice.
+      (d) CONTEXT: u=20, protocol-consistent (shared WINDOW_DAYS with
+          B/C). u=60 is recorded as a possible FOLLOW-UP ablation if
+          longer context ever shows merit — NOT a design decision now;
+          it would contaminate D-vs-B/C comparisons with a second
+          variable.
+      (e) BUDGET: C-matching schedule (epochs 10 x 300 = 3k steps,
+          warmup 1k) for direct D-vs-C comparability, PLUS the
+          pre-registered 20k re-check (if D clears EM at 3k, rerun at
+          20k before finalizing) — the C-phase lesson, built into the
+          protocol from the start.
 
 --------------------------------------------------------------------------------
 END OF NOTES
