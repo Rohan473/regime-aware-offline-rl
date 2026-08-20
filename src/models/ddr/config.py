@@ -42,6 +42,16 @@ class DDRConfig:
     vol_target_window: int = 20         # trailing (causal) window for realized vol
     max_leverage: float = 2.0           # clip bounds for the vol-scaled action
 
+    # --- direct exposure-level regularization (the under-leverage fix) ---
+    # Penalizes |mean(|a_t|) - target_exposure| over each training block, so
+    # the DSR's level-free gradient cannot silently de-leverage the policy.
+    # Unlike a variance floor, this targets the exact drifted quantity
+    # (mean absolute position) and cannot be gamed by erratic flipping
+    # without moving the very quantity being penalized.
+    exposure_regularization: bool = False
+    target_exposure: float = 0.75       # vol-implied: 0.15 target / ~0.18-0.20 SPY ann vol
+    exposure_lambda: float = 1.0        # penalty weight vs -D.mean() (O(0.1-1))
+
     @classmethod
     def from_yaml(cls, path: Path | str = CONFIG_YAML) -> "DDRConfig":
         """Build a DDRConfig from configs/ddr.yaml (unknown keys ignored,
@@ -85,5 +95,10 @@ class DDRConfig:
                 problems.append("vol_target_window must be >= 2 when vol_targeting")
             if self.max_leverage <= 0:
                 problems.append("max_leverage must be > 0 when vol_targeting")
+        if self.exposure_regularization:
+            if self.target_exposure <= 0:
+                problems.append("target_exposure must be > 0 when exposure_regularization")
+            if self.exposure_lambda <= 0:
+                problems.append("exposure_lambda must be > 0 when exposure_regularization")
         if problems:
             raise ValueError("invalid DDRConfig: " + "; ".join(problems))

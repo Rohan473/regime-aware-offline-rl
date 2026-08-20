@@ -23,6 +23,16 @@ model:
   vol_target_window: 20      # trailing (causal) window for realized vol
   max_leverage: 2.0          # clip bounds for the vol-scaled action
 
+  # --- direct exposure-level regularization (the under-leverage fix) ---
+  # OFF here; enabled via --exposure-reg / scripts/ddr_exposure_test.py.
+  # Penalty term on the training loss: lambda * |mean(|a_t|) - target| per
+  # block, targeting the exact quantity diagnosed as drifting (mean |a|).
+  # Preferred over a variance floor: variance can be gamed by erratic
+  # flipping without sustained exposure; the |mean|a|| - target| term cannot.
+  exposure_regularization: false
+  target_exposure: 0.75      # vol-implied: 0.15 ann target / ~0.18-0.20 SPY ann vol
+  exposure_lambda: 1.0       # weight vs -D.mean() (loss terms are O(0.1-1))
+
   # Vol-targeted runs write here so the OLD naive DSR checkpoint/results in
   # checkpoints/ are preserved side by side.
   checkpoint_dir: "checkpoints/vt"

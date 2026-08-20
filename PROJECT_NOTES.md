@@ -699,7 +699,60 @@ headline. The chain is the deliverable.
   (tacr_best.pt + training_log.csv), regime_eval.csv, vs_model_b.csv,
   basin_screening.csv. configs/tacr.yaml — Model C config.
 
-7.7 MODEL D SCOPING — COMMITTED DECISIONS (2026-08-18)
+7.7 MODEL B — EXPOSURE-REGULARIZATION TEST (2026-08-19)
+    - Motivation: B's drift to mean|a| ~ 0.26 was diagnosed as
+      under-leveraging (the DSR gradient is level-free — a uniform
+      de-leverage cancels in the Sharpe ratio). A variance floor was
+      rejected (user): variance can be gamed by erratic flipping
+      without sustained exposure; it constrains the wrong quantity.
+    - Implemented (src/models/ddr): direct exposure-level penalty on the
+      training loss, per block: lambda * |mean(|a_t|) - target_exposure|
+      (config fields exposure_regularization / target_exposure /
+      exposure_lambda; CLI --exposure-reg/--target-exposure/
+      --exposure-lambda/--tag). Default target 0.75 (vol-implied:
+      0.15 ann / ~0.18-0.20 SPY vol), lambda 1.0 (vs -D.mean() O(0.1-1)).
+      scripts/ddr_exposure_test.py runs the 5-seed protocol (SEEDS
+      20260814/1/2/3/4, base = naive DSR like canonical naive_new).
+    - RESULT (clean-label days): the penalty hits its target — exp
+      mean|a| 0.732 (target 0.75) vs naive_new 0.264 / vt 0.176 — but
+      Sharpe COLLAPSES: all-days 0.095 +- 0.531 vs naive_new 0.986 +-
+      0.267 / vt 0.806 +- 0.130; bull 0.016 vs 1.506 / 1.319. Short
+      fraction rises on most seeds and turnover roughly doubles
+      (0.11 -> 0.48 all days). OBSERVED, mechanism UNCONFIRMED.
+    - DECISION (canonical): naive_new stays the canonical Model B
+      baseline. The exposure-regularization variant is NOT folded in —
+      its only verified effects are (1) mechanical: exposure lands at
+      the target, (2) destructive: Sharpe collapses relative to both
+      canonical baselines at every regime. That decision does not depend
+      on why the penalty collapsed the strategy.
+    - MECHANISM HYPOTHESES (both consistent with the observed outcome,
+      neither yet confirmed):
+      (H1) The DSR's level-free sizing is load-bearing: small positions
+           encode low confidence, and forcing mean|a| up flattens that
+           signal, producing erratic large-position flipping. Predicts
+           large positions underperform per unit of exposure (or cluster
+           in regimes where the direction call is weak).
+      (H2) Generic multi-objective interference: the added penalty
+           destabilizes optimization regardless of what naive_new's
+           exposure levels mean. Predicts per-unit performance is flat
+           across position size in the unconstrained policy.
+      Distinguish by (a) per-seed heterogeneity of the exp pack (bimodal
+      vs uniform flipping) and (b) the confidence-signal check on
+      naive_new: does |a_t| correlate with forward direction quality
+      (ret/|a|) or cluster by regime (large in bull, small in bear/
+      crisis)? See the analysis script ddr_exposure_analysis.py.
+    - MEAN-VARIANCE VARIANT (logged, NOT implemented — explicit
+      separate variant per user): reward = E[r] - kappa * Var[r],
+      replacing the DSR entirely (bigger, defensible departure from
+      Moody & Saffell). Advantage: no "shrink variance to raise the
+      ratio" escape hatch — variance is subtracted, not divided.
+      Cost: a new free parameter kappa needing tuning, and it replaces
+      the paper's reward formulation rather than patching it. Decision
+      deferred; shares a caveat with the exposure test in that any
+      level-imposing objective must respect whatever the confidence
+      check reveals about naive_new's position sizing.
+
+7.8 MODEL D SCOPING — COMMITTED DECISIONS (2026-08-18)
     - Fork decision (user, explicit): "uncertainty" in D = FUZZY STATE
       ENCODING (T2F-DT style) — uncertainty lives in the INPUT space; a
       type-2 fuzzy layer fuzzifies the market-state features and the

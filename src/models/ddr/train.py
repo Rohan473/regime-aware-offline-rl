@@ -144,6 +144,13 @@ def train_ddr(
             if not valid.any():
                 continue
             loss = -D[valid].mean()
+            if cfg.exposure_regularization:
+                # direct level pressure: force mean|a_t| toward the target on
+                # the same steps that contribute to the DSR loss. The DSR
+                # gradient is level-free (a uniform de-leverage cancels in
+                # the Sharpe ratio); this term restores it explicitly.
+                a_pen = actions[valid].abs().mean()
+                loss = loss + cfg.exposure_lambda * (a_pen - cfg.target_exposure).abs()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -192,6 +199,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--no-vol-targeting", action="store_true", help="train naive DSR (raw a_t * ret)")
     parser.add_argument("--target-vol", type=float, default=None)
     parser.add_argument("--max-leverage", type=float, default=None)
+    parser.add_argument("--exposure-reg", action="store_true", help="add |mean|a|| - target| level pressure to the loss")
+    parser.add_argument("--target-exposure", type=float, default=None)
+    parser.add_argument("--exposure-lambda", type=float, default=None)
+    parser.add_argument("--tag", type=str, default=None,
+                        help="write checkpoints to checkpoints/<tag> instead of the yaml dir")
     args = parser.parse_args(argv)
 
     cfg = DDRConfig.from_yaml(args.config) if args.config else DDRConfig.from_yaml()
@@ -207,10 +219,15 @@ def main(argv: list[str] | None = None) -> None:
         "transaction_cost_bps": args.cost_bps,
         "target_vol": args.target_vol,
         "max_leverage": args.max_leverage,
+        "exposure_regularization": args.exposure_reg or None,
+        "target_exposure": args.target_exposure,
+        "exposure_lambda": args.exposure_lambda,
     }
     for k, v in overrides.items():
         if v is not None:
             setattr(cfg, k, v)
+    if args.tag is not None:
+        cfg.checkpoint_dir = Path(__file__).parent / "checkpoints" / args.tag
     cfg.validate()
 
     model, history, checkpoint = train_ddr(cfg)
