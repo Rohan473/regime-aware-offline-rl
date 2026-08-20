@@ -92,7 +92,7 @@ def corr_checks(preds: list[pd.DataFrame]) -> pd.DataFrame:
     pooled_a, pooled_q, pooled_m = [], [], []
     for seed, p in zip(SEEDS, preds):
         a = np.abs(p["action"].to_numpy())
-        q = (p["ret"].to_numpy() / np.clip(a, 1e-12))  # sign(a)*R
+        q = (p["ret"].to_numpy() / np.clip(a, 1e-12, None))  # sign(a)*R
         m = np.abs(p["market_ret"].to_numpy())
         rows.append(
             {

@@ -736,11 +736,38 @@ headline. The chain is the deliverable.
            destabilizes optimization regardless of what naive_new's
            exposure levels mean. Predicts per-unit performance is flat
            across position size in the unconstrained policy.
-      Distinguish by (a) per-seed heterogeneity of the exp pack (bimodal
-      vs uniform flipping) and (b) the confidence-signal check on
-      naive_new: does |a_t| correlate with forward direction quality
-      (ret/|a|) or cluster by regime (large in bull, small in bear/
-      crisis)? See the analysis script ddr_exposure_analysis.py.
+    - DISCRIMINATOR RESULTS (ddr_exposure_analysis.py, clean days):
+      (a) exp-pack is BIMODAL, not uniformly flipped: seed 4 IMPROVED to
+          0.734 vs its own naive_new 0.513 (short_frac 0.018, near-zero
+          flipping); seeds 1 (-0.648, short 0.90) and 2 (-0.199)
+          collapsed; seeds 20260814 (0.309) and 3 (0.280) mildly
+          degraded. The aggregate 0.095 +- 0.531 is a mean over
+          qualitatively different outcomes -> the mechanism is closer to
+          "training instability under a conflicting objective" than to a
+          clean behavioral substitution, and forcing exposure up is NOT
+          universally destructive (seed 4's counterexample).
+      (b) naive_new confidence signal: per-unit performance (sign(a)*R)
+          rises across |a| terciles (small 0.0001 -> med 0.0008 -> large
+          0.0010), but the continuous correlation is weak (pooled r =
+          0.034; per-seed 0.019-0.067). The effect is concentrated in
+          the large-position tail, which is the BEAR regime: large |a|
+          bucket is 0.40 bear (vs 0.11 for small), and naive_new takes
+          its LARGEST positions in bear (mean|a| 0.35-0.43 vs 0.19-0.32
+          bull, 0.17-0.34 crisis). So H1 is only PARTIALLY supported:
+          size encodes call quality at the bear-short tail, not as a
+          clean monotone gradient; H2 (interference) describes the
+          majority of seeds.
+      (c) corr(|a|, |R_t+1|) is moderate (pooled 0.16): position size
+          also scales with market volatility/opportunity, consistent
+          with size encoding risk-aware conviction rather than pure
+          noise.
+    - NET: canonical-B decision (naive_new unchanged) stands and is
+      independent of the mechanism. The exposure-regularization variant
+      is a seed-dependent interference effect — worse on 4 seeds,
+      better on the weak seed 4 — NOT a clean fix, NOT a clean failure.
+      Do not cite "exposure level is load-bearing" or "penalty induces
+      flipping" as confirmed claims; cite the bimodal breakdown + the
+      weak-but-positive size->quality tail instead.
     - MEAN-VARIANCE VARIANT (logged, NOT implemented — explicit
       separate variant per user): reward = E[r] - kappa * Var[r],
       replacing the DSR entirely (bigger, defensible departure from
