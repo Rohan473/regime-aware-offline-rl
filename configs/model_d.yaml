@@ -1,0 +1,52 @@
+# Model D (fuzzy + transformer + IQL) shared config — Phase 4.
+#
+# D is the Phase-4 test of the project's central hypothesis: explicit
+# uncertainty (interval type-2 fuzzy encoding of regime-sensitive features)
+# + a causal transformer state encoder + Implicit Q-Learning (IQL,
+# Kostrikov et al., ICLR 2022) over the Phase-1 behavior-policy
+# trajectories. `fuzzy: true` = D (26-d input); `fuzzy: false` =
+# D-minus-fuzzy (8-d input, identical net) — the ablation.
+#
+# IQL hyperparameters are sourced from the IQL paper: expectile tau 0.7,
+# temperature 3.0, lr 3e-4, gamma 0.99, polyak tau 0.005, no weight decay,
+# no grad clip. Deviations flagged in src/models/d/config.py + PROJECT_NOTES 7.9:
+#   - batch_size: paper 256 -> 64 (CPU scaling; equal to Model C's; the
+#     (s, s') pair forward doubles per-step compute).
+#   - training budget: paper ~1M GPU steps -> 3k (10 x 300) screen / 20k
+#     (40 x 500) escalation; warmup 1000 (Model C's scaled pattern).
+#   - transformer = causal state ENCODER at each timestep; IQL V/Q/policy
+#     heads consume h_t (spec section 3); NO RTG channel.
+model:
+  u: 20                # context length in days; == WINDOW_DAYS
+  embed_dim: 128       # Model C value
+  n_layer: 4           # Model C value
+  n_head: 1            # Model C value
+  n_inner: 512         # Model C value
+  dropout: 0.1         # Model C value
+  max_ep_len: 5283     # longest behavior-policy trajectory (timestep embedding)
+  fuzzy: true          # true = D (26-d); false = D-minus-fuzzy (8-d, no padding)
+
+fuzzy:
+  fields: [realized_vol_20d, ret_20d, rsi_14]   # vol / momentum / RSI
+  n_terms: 3            # low / mid / high Gaussian terms per field
+  mf_width_scale: 0.5   # UMF std = width_scale * bin width
+  fou_scale: 0.8        # LMF std = UMF std * fou_scale
+
+iql:
+  expectile: 0.7        # IQL paper
+  temperature: 3.0      # IQL paper (AWR advantage temperature, beta)
+  lr: 0.0003            # IQL paper
+  weight_decay: 0.0     # IQL paper (none)
+  gamma: 0.99           # IQL paper
+  tau: 0.005            # IQL paper (target-network polyak)
+
+training:
+  epochs: 10            # val-eval cadence; 10 x 300 = 3k steps (screen budget)
+  steps_per_epoch: 300
+  batch_size: 64        # paper 256; CPU-scaled (see header)
+  warmup_steps: 1000    # linear warmup; scaled to the 3k budget
+  seed: 20260814
+  device: cpu
+
+eval:
+  checkpoint_dir: checkpoints     # base; train/eval append d/ or d_minus_fuzzy/ + s{seed}

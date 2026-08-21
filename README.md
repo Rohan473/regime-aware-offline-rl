@@ -495,13 +495,70 @@ undertraining artifact — seed 1 rises to 0.73-0.87 at 20k — but the pack
 converges onto the same underperforming region); the verdict is
 basin-independent. Details: PROJECT_NOTES 7.6.1-7.6.2.
 
+## Model D: fuzzy + transformer + IQL (Phase 4)
+
+Tests the central hypothesis: making regime uncertainty EXPLICIT (a fixed
+interval type-2 fuzzy layer over realized_vol_20d / ret_20d / rsi_14 ->
+18 memberships appended to the raw 8-d state = 26-d input) before the
+policy sees the state, with a causal transformer state encoder (Model C's
+verified blocks; no return-to-go channel) and Implicit Q-Learning
+(Kostrikov et al. 2022: expectile V tau 0.7, AWR beta 3.0, lr 3e-4 —
+paper values, deviations flagged in `configs/model_d.yaml`). D-minus-fuzzy
+(8-d input, identical net) is the ablation; the fuzzy layer is a config
+toggle in the same package `src/models/d/`.
+
+```powershell
+python scripts/d_model_run.py              # 5 seeds x both variants @ 3k + eval + auto-escalation
+python -m src.models.d.train --variant d --seed 1           # single run
+python -m src.models.d.train --variant d_minus_fuzzy --seed 1
+python -m src.models.d.eval               # regime table, basin screening, screen verdicts
+```
+
+Validated by `tests/test_model_d.py` (causal masking, fuzzy determinism,
+MF-init reproducibility, expectile/AWR loss formulas, 26-vs-8 data
+boundary + compute-match). Artifacts under `src/models/d/checkpoints/`
+(`d/`, `d_minus_fuzzy/`, `d_20k/` escalation). Notebook:
+`notebooks/04_model_d_training.ipynb`.
+
+**Result — D clears the pre-registered screen; the fuzzy-uncertainty
+hypothesis is NULL.** All-days Sharpe (5 seeds): D 0.93 +- 0.02 @ 3k /
+0.87 +- 0.03 @ 20k; D-minus-fuzzy 0.88 +- 0.03 / 0.88 +- 0.04; both beat
+EM (0.80 +- 0.11) in >= 3/5 seeds at both budgets and pass the
+final-epoch check everywhere (no TACR-style val-overfit collapse). But
+the ablation delta (0.05 @ 3k, 0.01 @ 20k) is an order of magnitude below
+the pre-registered noise floor (0.24 = B's seed spread): the fixed IT2
+encoding adds no information the input projection cannot learn from the
+raw channels at this data scale. Input-sensitivity was verified directly
+(perturbation test, `scripts/d_diagnostics.py`): shuffling the whole state
+destroys the action series (corr ~ 0) while shuffling only the fuzzy
+channels barely moves it (corr ~ 0.93, landing at the D-minus-fuzzy
+baseline) — so the null is a real "no marginal fuzzy information," not an
+input-insensitive policy. The 3k->20k win-rate churn is a long-only tie
+artifact (short_frac = 0 makes D identical to EM), not degradation. D sits inside B's seed spread
+(0.99 +- 0.24) with ~10x lower seed variance — a stability gain, not a
+performance gain.
+
+**EM-margin audit (project-wide, `scripts/em_margin_audit.py`)** — the
+"beats EM X/5" count is a knife-edge criterion (a long-only policy is
+exactly its EM control), so every phase verdict was re-derived on per-seed
+margins (Sharpe(a*m) - Sharpe(|a|*m)): B naive_new **+0.19 mean** (robust
+skill, short side on 13-31% of days), C **-0.18** (anti-skill — its
+shorts lose vs passive same-exposure holding; 3/4 negative on the intact
+3k seeds — the 5th was overwritten by the 7.6.2 20k rerun, whose margin
+is also negative), D **+0.02-0.03** (thin, never negative: stability, not
+skill comparable to B's). Canonical-B is strengthened (vt posted the same
+4/5 count on ~70x thinner margins); C's failure is sharpened (not a tie
+artifact); D's screen pass is re-classified as thin-margin. Win counts
+are never reported without margins in this project. Details:
+PROJECT_NOTES 7.9.2. Scope: fixed-MF IT2 over these 3 features on this
+data; learned MFs / u=60 logged as future work. Details: PROJECT_NOTES
+7.9.
+
 ## Open decisions (flagged, not decided here)
 
-- Offline RL library for Models C/D: `d3rlpy` vs `CORL` (your call said "scope
-  might expand"). Dataset is exported as plain parquet — library-agnostic.
-  `pyproject.toml` lists `d3rlpy>=2.3,<3` as the optional `rl` extra,
-  unverified against this Python 3.12 env; verify when Models C/D start:
-  `pip install -e .[rl]`.
+- Offline RL library: Models C/D were implemented from scratch (C per the
+  TACR paper, D per the IQL paper) — the `d3rlpy` optional extra was never
+  needed and remains unverified/unused.
 - Your spec said Python 3.11; this machine has only 3.12.5. Everything is
   verified on 3.12.5.
 - The downloader writes raw files into the repo root, not `data/raw/`; the

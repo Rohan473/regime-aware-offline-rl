@@ -426,6 +426,22 @@ headline. The chain is the deliverable.
     - The 5-seed mean 0.99 +- 0.24 (all days) in 7.5.3 is dominated by
       the seed-4 outlier; the pack consensus 1.10 +- 0.04 is the
       representative baseline.
+    - MARGIN-AUDIT ADDENDUM (2026-08-21, scripts/em_margin_audit.py;
+      full tables in 7.9.2): "beats EM X/5" was later shown to be a
+      knife-edge criterion (a long-only policy is EXACTLY its EM
+      control), so the canonical decision was re-derived on per-seed
+      EM margins (Sharpe(a*m) - Sharpe(|a|*m)):
+        naive_new: +0.17 / +0.31 / +0.28 / +0.28 / -0.08
+                   (seeds 20260814/1/2/3/4; short_frac 0.14-0.31)
+        vt:        -0.18 / +0.03 / +0.01 / +0.03 / +0.12 (mean +0.003)
+      naive_new's margins are WIDE — robust directional skill; the
+      canonical verdict never rested on the tie structure (seed 4's
+      loss is a genuinely negative margin, not a tie). vt posts the
+      SAME 4/5 win count on margins an order of magnitude thinner —
+      knife-edge. The margin view therefore STRENGTHENS the canonical
+      decision: the count called naive_new and vt equivalent; the
+      margins separate them by ~70x. naive_new stays canonical, now on
+      margin evidence rather than count alone.
 
   7.6 MODEL C (TACR) — implementation notes (2026-08-18)
     - Reproduces Lee & Moon, "Transformer Actor-Critic with Regularization:
@@ -513,6 +529,29 @@ headline. The chain is the deliverable.
       an undertraining artifact (seed 1 rises to 0.73-0.87 at 20k), yet
       the pack converges onto the same underperforming region, so the
       verdict does not move.
+    - MARGIN-AUDIT ADDENDUM (2026-08-21, scripts/em_margin_audit.py;
+      full tables in 7.9.2): per-seed EM margins
+      (Sharpe(a*m) - Sharpe(|a|*m)):
+        TACR: -0.20 / -0.62* / -0.04 / -0.06 / +0.05
+              (seeds 20260814/1/2/3/4; short_frac 0.05-0.32)
+      NEGATIVE in 4/5. *CAVEAT: the seed-1 number is the 20k rerun's
+      (7.6.2 Run A) — that rerun OVERWROTE the 3k original checkpoint,
+      and Phase-3 eval never saved per-seed action series, so the 3k
+      seed-1 margin is unrecoverable. Robustness without seed 1: the
+      four intact 3k seeds give -0.20 / -0.04 / -0.06 / +0.05 -> mean
+      -0.06, 3/4 negative. The verdict DIRECTION (negative-mean margins
+      with an active short side) survives either way; only the
+      magnitude (-0.18 vs -0.06) carries the substitution caveat.
+      TACR is not failing for lack of shorts — it shorts plenty, and
+      the shorts LOSE vs passively holding the same exposure long. The
+      1/5 failure is therefore anti-skill, not the long-only tie
+      artifact that later showed up in D's win counts (7.9.1 CHECK 2)
+      — the count's fragility cannot rescue this verdict. The
+      structural finding (val->test transfer failure, below) stands on
+      independent evidence; the audit adds that TACR's directional
+      signal is worse than same-exposure passive holding on 3-4 of 5
+      seeds, i.e. the failure is not confined to checkpoint selection
+      — the policy itself is bad.
     - MECHANISM (confirmed by the final-epoch check, 7.6.2): TACR's
       failure mode is val->test transfer. Best-val-epoch selection
       (inherited from B's protocol, where B transfers tightly:
@@ -892,6 +931,315 @@ headline. The chain is the deliverable.
           pre-registered 20k re-check (if D clears EM at 3k, rerun at
           20k before finalizing) — the C-phase lesson, built into the
           protocol from the start.
+
+--------------------------------------------------------------------------------
+7.9 MODEL D — IMPLEMENTATION AND RESULTS (2026-08-21)
+--------------------------------------------------------------------------------
+    - Implemented per the user's Phase-4 spec, verbatim scope: new files
+      only (src/models/d/, tests/test_model_d.py, configs/model_d.yaml,
+      notebooks/04_model_d_training.ipynb, scripts/d_model_run.py);
+      ddr/tacr/data/eval modules untouched. D and D-minus-fuzzy share the
+      package; the fuzzy layer is a config toggle.
+    - ARCHITECTURE AS BUILT: fixed IT2 Gaussian fuzzy layer (18
+      memberships: realized_vol_20d/ret_20d/rsi_14 x low/mid/high x
+      UMF/LMF; centers at the 33rd/50th/66th TRAIN-split percentiles, UMF
+      std = 0.5 x bin width, LMF std = 0.8 x UMF; buffers only, no
+      learned params) concatenated onto the raw 8-d state -> 26-d input
+      for D, 8-d for D-minus-fuzzy (no padding). Causal transformer state
+      ENCODER (C's exact DecoderBlock/CausalSelfAttention imported from
+      tacr.policy; embed 128 / n_layer 4 / n_inner 512) producing h_t per
+      timestep; IQL heads (Kostrikov et al. 2022): expectile V (tau 0.7),
+      Q on (h_t, a), deterministic tanh policy via AWR (beta 3.0). NO
+      return-to-go channel — the encoder is a state encoder, not an
+      autoregressive RTG-conditioned generator, so the C failure class
+      (future-return leakage through the conditioning channel) is
+      structurally absent. Optimizer: 3x AdamW lr 3e-4 (paper value), no
+      weight decay, no grad clip, warmup 1k, polyak 0.005; batch 64
+      (paper 256; CPU-scaled, equals C's batch). Tests (8 new, 62 total
+      green): causal masking, fuzzy determinism/passthrough, MF-init
+      reproducibility + spec values (percentiles, UMF/LMF widths),
+      expectile/AWR loss formulas, 26-vs-8 data boundary + compute-match,
+      window left-padding.
+    - RESULTS (pre-registered rules applied without adjustment; all-days
+      Sharpe, 5 seeds, test 2021+ clipped 2024-12-31):
+
+        3k screen      mean    std    vs EM    final-epoch check
+        D (fuzzy)      0.9310  0.0192  4/5     pass (best 0.931 / final 0.894)
+        D-minus-fuzzy  0.8807  0.0250  4/5     pass (best 0.881 / final 0.882)
+        B (naive_new)  0.9859  0.2390   —      —
+        EM control     0.7961  0.1050   —      —
+        C (TACR)       0.6121  0.1988  fail    fail (structural collapse)
+
+        20k escalation (both variants trained per the pre-registered
+        "escalate BOTH if EITHER clears" rule):
+        D (fuzzy)      0.8725  0.0329  3/5     pass (best 0.873 / final 0.871)
+        D-minus-fuzzy  0.8837  0.0380  4/5     pass (best 0.884 / final 0.863)
+
+      Ablation verdict: NULL at both budgets (|delta| 0.050 at 3k, 0.011
+      at 20k; bar = max(pooled SD, naive_new seed spread 0.240)).
+    - READINGS (scoped):
+      (1) SCREEN: D clears the pre-registered bar (>= 3/5 vs EM) at both
+          budgets. IQL's design goals held: no val-overfit collapse
+          anywhere (final-epoch check passes for every variant/budget,
+          unlike C where every checkpoint failed), and 20k training
+          mildly degrades (0.931 -> 0.873) instead of exploding —
+          consistent with mild overfitting, not the trajectory-level
+          Q-collapse C showed.
+      (2) CENTRAL HYPOTHESIS: NOT SUPPORTED. The fuzzy uncertainty layer
+          is indistinguishable from its ablation (delta an order of
+          magnitude below the noise floor at 20k). The 18 memberships
+          are a deterministic function of 3 of the 8 raw features, and
+          the encoder can learn any monotone re-weighting of those
+          features from the raw channels alone — at this data scale
+          (15.9k transitions, ~3.9k train days) the fixed IT2 encoding
+          adds no information the 2-layer input projection cannot
+          express. Scope: fixed-MF IT2 over these 3 features, this
+          architecture/budget; NOT a claim about learned MFs, richer
+          rule bases, or T2F-DT wholesale.
+      (3) vs B: D (0.87-0.93) sits inside B's seed spread (0.99 +- 0.24)
+          with far lower seed variance (std ~0.02-0.04 vs 0.24) — a
+          stability gain, not a performance gain. D's edge over EM comes
+          from the same place as B's: long-bull participation +
+          exposure cuts in bear (bear Sharpe ~ 0 for both variants;
+          short_frac < 1%), not from shorting skill.
+      (4) BASIN: cross-seed test-action correlation is high for both
+          variants (0.78-0.92) — no B-style outlier basin. Some 20k
+          seeds show late best-val epochs (25-37/40), but their
+          per-seed outcomes do not separate from the pack, so the flag
+          is inert here; noted, not acted on (the 0.7-corr / epoch-frac
+          thresholds were calibrated on B and remain coarse).
+      (5) Crisis (15 test days): D 0.31-1.05, D-minus-fuzzy 0.42-1.30
+          per seed — never a headline.
+    - DEVIATIONS (from IQL paper, all flagged in config docstrings):
+      batch 256 -> 64 (CPU; equals C's batch); budget ~1M -> 3k/20k
+      (CPU-scaled, C-comparable); grad-clip/weight-decay absent (paper
+      does not use them; C's 0.25/1e-4 were TACR paper values); warmup
+      1k added (C's scaled pattern). One numerical guard: AWR advantage
+      clamped at 10 before exp (inactive at daily-return scale).
+    - FUTURE WORK (logged, not built): u=60 context ablation; learned
+      MF parameters; larger term counts; fuzzy-output (rule-activation)
+      variants; mean-variance reward for B (logged in 7.7). None change
+      the current verdict.
+    - CONCLUSION: Model D is the first model in the project that
+      trains stably offline and beats EM control under the
+      pre-registered protocol — but the explicit-uncertainty hypothesis
+      it was built to test is null on this data. The four-model
+      comparison ends: B (naive_new) remains the best headline policy;
+      D is the stable-optimization alternative; C failed structurally;
+      the uncertainty interventions tested (fuzzy encoding here,
+      exposure regularization in 7.7) have both been null.
+
+--------------------------------------------------------------------------------
+7.9.1 MODEL D — POST-HOC DIAGNOSTICS: IS THE NULL ABLATION INTERPRETABLE?
+      (2026-08-21, run before accepting 7.9's conclusion)
+--------------------------------------------------------------------------------
+    - MOTIVATION (user, recorded): a null D-vs-D-minus-fuzzy ablation has
+      two indistinguishable causes — (a) "fuzzy doesn't help" or (b) "IQL's
+      objective barely uses its inputs, converging to a bland
+      dataset-anchored policy regardless of representation." A Sharpe
+      table alone cannot separate them. Also flagged: D's win rate vs EM
+      fell 4/5 -> 3/5 from 3k to 20k while D-minus-fuzzy held 4/5
+      (TACR-shaped?), and the spec's basin-screening + compute-matching
+      deliverables were not reported per variant. All checked via
+      scripts/d_diagnostics.py (checkpoints/diagnostics/*.csv).
+    - CHECK 1 — INPUT-SENSITIVITY PERTURBATION TEST (decisive). On the
+      test split, perturb ONLY parts of the input matrix (timestep
+      embeddings unchanged; best-val checkpoints; corr of the deterministic
+      action series vs baseline, mean |delta a|):
+        all-shuffle  (whole state of another day):  corr ~ 0.00-0.06, |da| ~ 0.10
+        raw-shuffle  (raw 8 of another day, fuzzy kept): corr 0.07-0.15, |da| ~ 0.09
+        fuzzy-shuffle (fuzzy 18 of another day, raw kept): corr ~ 0.93, |da| ~ 0.026
+        fuzzy-zero   (memberships zeroed, raw kept):      corr ~ 0.96, |da| ~ 0.021
+      (consistent across 3k and 20k, all 5 seeds.) READOUT: the policy is
+      STRONGLY input-sensitive — confound (b) is ruled out: shuffling
+      state content destroys the action series (corr ~ 0) and moves test
+      Sharpe (0.93 -> 1.01 at 3k). The raw 8 channels dominate; the fuzzy
+      channels ARE read (corr drops to 0.93, |da| ~ 1/4 of action std) but
+      contribute marginally, and their information is redundant with raw:
+      fuzzy-shuffle Sharpe (0.895 @3k) lands exactly at the D-minus-fuzzy
+      baseline (0.881 @3k). Coherent picture: destroying the fuzzy signal
+      degrades D to its ablation's level; the ablation null is therefore
+      INTERPRETABLE as "fuzzy adds no marginal information over raw at
+      this scale," not as an input-insensitivity artifact.
+    - CHECK 2 — WIN-RATE CHURN IS A TIE ARTIFACT — AND THE ARTIFACT IS
+      PROJECT-WIDE (see CHECK 5). Every seed that "flipped" (won @3k,
+      lost @20k) — D seeds 1 and 20260814, D-minus-fuzzy seed 20260814 —
+      has short_frac = 0.0000: a long-only policy is IDENTICAL to its EM
+      control (a*m == |a|*m), margin exactly 0, counted as a loss under
+      the strict > rule. The churn is seeds crossing the long-only
+      boundary, not TACR-shaped collapse: per-seed Sharpe moved mildly
+      (D seed 1: 0.942 -> 0.871), the final-epoch check passes
+      everywhere, and D-minus-fuzzy shows the same tie-churn (its 20k
+      "held" 4/5 only because seed 3 crossed back). Every seed with ANY
+      short exposure (short_frac >= 0.8%) beats EM at BOTH budgets and
+      variants — D's entire EM edge lives in the small short side
+      (margins 0.02-0.09), consistent with B.
+    - CHECK 3 — BASIN SCREENING PER VARIANT (spec section 0 deliverable;
+      thresholds NOT re-calibrated to D a priori, reported raw):
+        3k:  D flags 4/5 (seeds 1,2: cross-seed corr 0.689/0.691 just
+             under the 0.7 bar; seeds 3,4: best-val ep 8,6 of 10 vs the
+             0.35-frac rule) — outcomes uniform (0.903-0.951).
+             D-minus-fuzzy flags 1/5 (seed 4, ep 9/10).
+        20k: D flags 3/5 (seeds 20260814/2/3, best-val ep 25/34/21 of
+             40); D-minus-fuzzy flags the SAME 3 seeds (ep 25/28/37).
+      Flagged vs unflagged seeds do not separate in outcome at either
+      budget. The within-D sharing of flagged seeds across variants is
+      EXPECTED (near-identical architectures + same seed init => same
+      optimization-trajectory shape) and carries no cross-architecture
+      information. IMPORTANT CORRECTION (user, 2026-08-21): an earlier
+      draft read this as "basin structure tracks the seed across
+      architectures, matching the 7.7 stray thread" — that claim is
+      CONTRADICTED by the seed identities. Under DDR naive_new (7.5),
+      the good basin was seeds 20260814/1/2/3 and seed 4 was the
+      outlier; D's 20k flagged seeds (20260814/2/3) are drawn from
+      DDR's GOOD basin, and DDR's outlier (seed 4) is unflagged at 20k.
+      The flag sets are also budget-unstable (3k D flags 1,2,3,4; 20k
+      flags 20260814,2,3). Correct reading: D's basin flags are noise
+      (see the val-landscape check below), tracking neither outcome nor
+      any persistent per-seed property; this is evidence AGAINST the
+      7.7 stray thread (cross-objective basin persistence), which
+      remains open and now has one data point against it.
+    - CHECK 3b — VAL LANDSCAPE (direct check, replaces the inferred
+      "flat landscape" read). Val Sharpe over epochs 10-20 of the 20k
+      runs sits on a TRENDLESS plateau for every seed, flagged or not:
+      mean 0.68-0.77, epoch-to-epoch std 0.07-0.19 (pooled ~0.13). The
+      best-val "peaks" are 1.7-4.9 sigma noise spikes above the plateau
+      (best_val 0.94-1.21), so the best-val EPOCH (anywhere from 2 to
+      37 of 40) is the location of the largest noise draw, not a
+      trend peak — uninformative about selection pathology. This is
+      consistent with (and now directly explains) the passing
+      final-epoch checks: any epoch's policy is a plateau sample.
+    - CHECK 4 — COMPUTE-MATCH VERIFIED from the configs saved in each
+      checkpoint (not the repo yaml): epochs/steps_per_epoch/batch_size/
+      warmup/lr/expectile/temperature identical across D and
+      D-minus-fuzzy at matched budgets (10x300 and 40x500, batch 64);
+      samples-per-step identical; only the input Linear width (26 vs 8)
+      differs, and the shared transformer blocks dominate compute.
+    - CHECK 5 — THE "BEATS EM" CRITERION IS A KNIFE-EDGE, RETROACTIVELY.
+      The tie structure exposed in CHECK 2 is not D-specific: a
+      long-only policy is EXACTLY its EM control, and every model in
+      this project is ~long-only (short_frac: B 17%, C/D < 2%), so each
+      X/5-vs-EM win-count compresses a continuous, thin short-side
+      margin (D: 0.02-0.09; C's margins were negative; B's are
+      documented in 7.5) into a fragile binary: "won" means "took a
+      short position AND it helped," "lost" usually means "took none."
+      This reframes — but does not overturn — the verdicts that leaned
+      on win counts: B's canonical selection (7.5), C's 1/5 failure
+      (7.6.1), D's screen pass (7.9). C's failure survives (its
+      margins are negative even where shorts exist, and the structural
+      evidence is independent); D's screen pass survives (positive
+      margins in every short-taking seed at both budgets); B's margins
+      were the widest. PROTOCOL RULE going forward: report per-seed EM
+      margins alongside every win count, never the count alone.
+      (Retroactive re-derivation with full tables: 7.9.2.)
+    - VERDICT ON 7.9's CONCLUSION: it STANDS, now with the sensitivity
+      evidence attached — "central hypothesis not supported" is scoped to
+      "the fixed IT2 encoding over these 3 features adds no marginal
+      information over the raw channels for this objective at this data
+      scale," verified against the input-insensitivity confound. The
+      4/5 -> 3/5 win-rate change is a long-only tie artifact, not
+      regression. CAVEAT attached to the verdict (CHECK 5): "beats EM"
+      verdicts everywhere in this project rest on thin short-side
+      margins; report margins alongside win counts in any writeup.
+      Basin flags are plateau noise (CHECK 3/3b) and say nothing about
+      seeds or architectures. All diagnostics reproducible:
+      python scripts/d_diagnostics.py
+
+--------------------------------------------------------------------------------
+7.9.2 EM-MARGIN AUDIT — EXPLICIT RE-DERIVATION OF THE §7.5/§7.6 VERDICTS
+      (2026-08-21, scripts/em_margin_audit.py, user-mandated)
+--------------------------------------------------------------------------------
+    - WHY: 7.9.1 CHECK 5 showed "beats EM X/5" is a knife-edge criterion
+      (long-only policy == its EM control exactly; margins are thin
+      wherever shorts are thin). Every phase verdict that leaned on a
+      win count must therefore be re-derived with the margins shown,
+      not asserted. This section is that pass; addenda were also
+      inserted at the point of use (7.5.5 and 7.6.1) so each section
+      stands alone. Reproduce: python scripts/em_margin_audit.py
+      (also writes diagnostics/em_margin_audit.csv).
+    - MARGIN DEFINITION: per seed, margin = Sharpe(a*m) - Sharpe(|a|*m)
+      where EM is the policy's OWN exposure-matched control (same |a|,
+      long-only). Positive margin = the directional signal (the short
+      side + timing) adds value over passively holding the same
+      exposure. Ties (margin exactly 0) arise iff short_frac = 0.
+    - FULL TABLE (per-seed margins; seeds 20260814/1/2/3/4):
+
+        B naive_new   +0.17  +0.31  +0.28  +0.28  -0.08   mean +0.190
+        B vt          -0.18  +0.03  +0.01  +0.03  +0.12   mean +0.003
+        C (TACR)      -0.20  -0.62* -0.04  -0.06  +0.05   mean -0.176
+        D @3k         +0.01  +0.02  +0.00  +0.03  +0.09   mean +0.029
+        D-minus @3k   +0.02  +0.02  +0.00  +0.00  +0.09   mean +0.027
+        D @20k        +0.00  +0.00  +0.03  +0.04  +0.04   mean +0.021
+        D-minus @20k  +0.00  +0.00  +0.03  +0.02  +0.03   mean +0.017
+
+      (short_frac: B naive_new 0.14-0.31; B vt 0.22-0.49; C 0.05-0.32;
+      D < 0.025 everywhere — D's zero-margins are exactly its zero-short
+      seeds. B rows verified against the on-disk Phase-2 checkpoints:
+      pack means 1.104 / 0.806 match 7.5.3's documented values.)
+      *CAVEAT: C's seed-1 margin is the 20k rerun's — 7.6.2's Run A
+      overwrote the 3k original (confirmed by reading the checkpoint's
+      saved config: epochs 20x1000, best_val 0.714, epoch 17), and no
+      per-seed action series was saved in Phase 3, so the 3k seed-1
+      margin is unrecoverable. The audit script now AUTO-DETECTS the
+      budget of every C checkpoint. Robustness: the four intact 3k C
+      seeds give mean -0.06 with 3/4 negative — the anti-skill
+      direction survives; only the magnitude claim (-0.18) carries
+      the substitution caveat.
+    - THE COUNT COMPRESSES THREE DISTINCT REGIMES into one binary:
+        robust skill   : B naive_new — margins ~0.2, driven by a real
+                         short side (13-31% of days), negative only in
+                         the known seed-4 outlier basin.
+        knife-edge     : B vt and D — margins ~0.01-0.03 (or 0 by
+                         construction); "wins" mean "took a small short
+                         position and it helped slightly."
+        anti-skill     : C — margins negative in 4/5; shorts actively
+                         lose vs passive same-exposure holding.
+    - RE-DERIVATION 1 — canonical-B decision (7.5.5): SURVIVES,
+      STRENGTHENED. The win count called naive_new and vt EQUIVALENT
+      (both 4/5); the margins separate them by ~70x (mean +0.190 vs
+      +0.003). vt's 4/5 is itself knife-edge (three margins < 0.035).
+      The canonical choice of naive_new is now margin-backed, not
+      count-backed. Confidence UP.
+    - RE-DERIVATION 2 — C's structural failure (7.6.1): SURVIVES,
+      SHARPENED. C's 1/5 is not a tie artifact — C shorts on 5-32% of
+      days and the margin is negative in 4/5 (mean -0.18 with the
+      20k-substituted seed 1; mean -0.06, 3/4 negative, on the intact
+      3k seeds): the policy is worse than passive same-exposure
+      holding, independent of checkpoint selection. The val->test
+      transfer failure remains the structural mechanism; the audit
+      shows the deficiency is not confined to selection — the learned
+      directional signal itself is anti-informative. Confidence UP.
+      (Scope unchanged: "TACR as reproduced here, on this data.")
+    - RE-DERIVATION 3 — D's screen pass (7.9): SURVIVES, RE-CLASSIFIED.
+      Every D margin is >= 0 at both budgets (never negative — IQL's
+      AWR anchoring avoids C's anti-skill), so the "clears the bar"
+      verdict stands. But the edge is an order of magnitude thinner
+      than B's (+0.02..+0.03 vs +0.19) and tie-driven on every
+      zero-short seed. Honest framing: D's screen pass demonstrates
+      STABILITY (no anti-skill, no collapse), not skill comparable to
+      B's. Any writeup comparing B and D must state this in margin
+      terms, not win counts.
+    - PROJECT-LEVEL CONCLUSION: the operative "beats EM" criterion was
+      under-powered from Phase 2 onward — it could not distinguish
+      robust skill from knife-edge luck from anti-skill, and it
+      silently equated "took no short positions" with "lost." The
+      project's substantive verdicts survive the re-derivation
+      (canonical-B: strengthened; C failure: sharpened; D screen:
+      re-classified as thin), but ALL headline tables in any writeup
+      must carry per-seed margins, and the final-models summary should
+      be read as: B = wide-margin skill, D = thin-margin stability,
+      C = negative-margin failure.
+    - OPEN QUESTION (recorded, not chased): whether margin SIZE (not
+      just sign) tracks anything nameable across the three regimes —
+      e.g. training objective (B's wide margins came from direct DSR
+      backprop; C's negative ones from actor-critic; D's thin-positive
+      ones from IQL/AWR anchoring — a tempting but n=1-per-objective
+      pattern), or basin structure (no test available for C: its 3k
+      pack is UNIFORMLY flagged by the screening, so there is no
+      flagged/unflagged contrast to compare margins against). Three
+      models are too few to attribute; any future variant should log
+      margins per seed from the start so this question can accumulate
+      evidence instead of being re-derived.
 
 --------------------------------------------------------------------------------
 END OF NOTES
