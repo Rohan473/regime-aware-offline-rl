@@ -11,10 +11,13 @@ import pytest
 
 from src.data.loaders import _resample_daily
 from src.data.offline_dataset import build_offline_dataset
+from src.data.behavior_policies import policy_names
 from src.data.technical_factors import FEATURE_COLUMNS
-from tests.conftest import BULL_DAYS, BEAR_DAYS, CRISIS_DAYS, synthetic_daily_ohlcv
+from tests.conftest import BULL_DAYS, BEAR_DAYS, CRISIS_DAYS, DEFAULT_CFG, synthetic_daily_ohlcv
 
-POLICIES = ["momentum", "mean_reversion", "buy_and_hold", "random"]
+POLICIES = tuple(policy_names(DEFAULT_CFG))
+MOMENTUM_POLICIES = tuple(p for p in POLICIES if p.startswith("momentum_"))
+MREV_POLICIES = tuple(p for p in POLICIES if p.startswith("mean_reversion_"))
 
 
 @pytest.fixture
@@ -56,14 +59,16 @@ def test_action_diversity(dataset):
 
 
 def test_shorting_occurs(dataset):
-    """With position limits [-1, 1], momentum and mean-reversion must both
-    take negative (short) positions at some point, and the dataset action
-    range must actually span negative territory."""
+    """Every momentum / mean-reversion WINDOWED policy must take both short
+    and long positions (symmetric scaled signals), and the dataset action
+    range must span negative territory."""
     assert dataset["action"].min() < 0
-    for policy in ("momentum", "mean_reversion"):
-        actions = dataset[dataset["policy"] == policy]["action"]
-        assert (actions < 0).any(), f"{policy} never shorts"
-        assert (actions > 0).any(), f"{policy} never goes long"
+    for family, members in (("momentum", MOMENTUM_POLICIES), ("mean_reversion", MREV_POLICIES)):
+        assert len(members) > 0, f"{family} family not expanded from config"
+        for policy in members:
+            actions = dataset[dataset["policy"] == policy]["action"]
+            assert (actions < 0).any(), f"{policy} never shorts"
+            assert (actions > 0).any(), f"{policy} never goes long"
 
 
 def test_buy_and_hold_reward_equals_next_day_return(cfg, daily):
@@ -105,11 +110,43 @@ def test_next_state_is_following_state(dataset):
             )
 
 
+def _policy_window(policy: str) -> int | None:
+    """Window of a windowed policy tag ('momentum_30d' -> 30); None for
+    buy_and_hold / random."""
+    for suffix in ("momentum_", "mean_reversion_"):
+        if policy.startswith(suffix):
+            return int(policy[len(suffix) : -1])
+    return None
+
+
+def _policy_valid_mask(policy: str, frame: pd.DataFrame, base: pd.Series) -> pd.Series:
+    """Family-specific validity mask (warm-up), computed independently of
+    behavior_policies.py to cross-validate the pipeline."""
+    valid = base
+    w = _policy_window(policy)
+    if w is not None:
+        log_close = np.log(frame["close"])
+        valid = valid & log_close.diff().rolling(w).sum().notna()
+    if policy == "nr7":
+        rng = frame["high"] - frame["low"]
+        # the 7-day range minimum must be defined at t-1
+        valid = valid & rng.rolling(7).min().shift(1).notna()
+    return valid
+
+
 def test_transition_count_matches_valid_days(dataset, cfg, daily):
+    """One transition per (policy, valid decision day) minus window warm-up.
+
+    Each windowed policy additionally needs ``window`` trailing days for its
+    rolling return to be defined, so its trajectory starts later than the
+    base (feature + regime) warm-up; nr7 needs its 7-day range lookback at
+    t-1. Computed independently to cross-validate the pipeline count."""
     transitions, frame = build_offline_dataset(cfg, daily=daily)
-    valid = frame[FEATURE_COLUMNS].notna().all(axis=1) & frame["regime"].notna()
-    n_valid = int(valid.sum())
-    assert len(transitions) == (n_valid - 1) * len(POLICIES)
+    base = frame[FEATURE_COLUMNS].notna().all(axis=1) & frame["regime"].notna()
+    expected = 0
+    for p in POLICIES:
+        expected += int(_policy_valid_mask(p, frame, base).sum()) - 1
+    assert len(transitions) == expected
 
 
 def test_regime_distribution_non_degenerate(dataset):
@@ -165,3 +202,55 @@ def test_crisis_block_has_higher_volume(daily):
     crisis = daily.iloc[BULL_DAYS + BEAR_DAYS : BULL_DAYS + BEAR_DAYS + CRISIS_DAYS]
     calm = daily.iloc[:BULL_DAYS]
     assert crisis["volume"].mean() > 2 * calm["volume"].mean()
+
+
+# ---------------- NR7 specialized signal family ----------------
+
+
+def test_nr7_actions_are_long_short_flat(dataset):
+    """The NR7 policy must be a clean Long/Short/Flat vector."""
+    nr7 = dataset[dataset["policy"] == "nr7"]
+    assert len(nr7) > 0
+    assert set(nr7["action"].unique()) <= {-1.0, 0.0, 1.0}
+    # on ~20 years of daily data the signal must fire on both sides
+    assert (nr7["action"] == 1.0).any(), "nr7 never goes long"
+    assert (nr7["action"] == -1.0).any(), "nr7 never goes short"
+    # and stay flat often (NR7 days are rare: narrowest-of-7 is ~1/7 of days,
+    # and only confirmed breakouts trade)
+    assert (nr7["action"] == 0.0).mean() > 0.5, "nr7 is rarely flat — signal is wrong"
+
+
+def test_nr7_signal_matches_hand_computed_rule(cfg, daily):
+    """Independently recompute the NR7 rule and compare action-by-action.
+
+    At decision date t: long(+1) iff t-1 was an NR7 day (narrowest high-low
+    range of the 7 trading days ending t-1, ties allowed) and close[t] >
+    high[t-1]; short(-1) iff NR7 at t-1 and close[t] < low[t-1]; else 0."""
+    transitions, frame = build_offline_dataset(cfg, daily=daily)
+    rng = frame["high"] - frame["low"]
+    rng_min7 = rng.rolling(7).min()
+    nr7_day = (rng == rng_min7) & rng_min7.notna()
+    nr7_prev = nr7_day.shift(1).fillna(False).astype(bool)
+    expected = pd.Series(0.0, index=frame.index)
+    expected[nr7_prev & (frame["close"] > frame["high"].shift(1))] = 1.0
+    expected[nr7_prev & (frame["close"] < frame["low"].shift(1))] = -1.0
+
+    nr7 = transitions[transitions["policy"] == "nr7"].set_index("date")
+    got = expected.reindex(nr7.index)
+    assert got.notna().all()
+    np.testing.assert_array_equal(nr7["action"].to_numpy(), got.to_numpy())
+
+
+def test_nr7_reward_is_action_times_next_return(dataset):
+    """reward_t = a_t * ret_{t+1} (cost 0) — verified for the nr7 family
+    specifically, including the +/-1 breakout days."""
+    nr7 = dataset[dataset["policy"] == "nr7"].reset_index(drop=True)
+    active = nr7[nr7["action"] != 0.0]
+    assert len(active) > 0
+    # ret_{t+1} = reward / action on active days
+    implied = active["reward"] / active["action"]
+    assert np.isfinite(implied).all()
+    # implied next-day returns must be plausible daily moves (< 25%)
+    assert implied.abs().max() < 0.25
+    # and flat days earn exactly 0
+    assert (nr7.loc[nr7["action"] == 0.0, "reward"] == 0.0).all()

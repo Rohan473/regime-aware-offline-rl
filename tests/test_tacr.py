@@ -115,11 +115,17 @@ def test_context_length_matches_model_b_windowing() -> None:
     b_data = load_ddr_data(WINDOW_DAYS)
 
     shared = tacr_data.dates.intersection(b_data.dates)
-    assert len(shared) == len(b_data.dates)  # identical calendars
+    # TACR's calendar is a SUBSET of B's: the windowed behavior families
+    # (e.g. momentum_250d) need their lookback warm-up, so the intersected
+    # trajectory dates start later than B's single-policy path. All of
+    # TACR's dates must be covered by B, and the test-window comparison
+    # is on dates both share.
+    assert len(shared) == len(tacr_data.dates)
+    assert shared.isin(b_data.dates).all()
 
     # TACR state at t == DDR window's last row at t (both Z_COLUMNS of day t)
     pos = b_data.dates.get_indexer(shared)
-    ddr_last = b_data.windows[np.arange(len(shared)), -1, :]
+    ddr_last = b_data.windows[pos, -1, :]
     t_pos = tacr_data.dates.get_indexer(shared)
     tacr_state = tacr_data.states[t_pos]
 

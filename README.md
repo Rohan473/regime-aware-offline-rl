@@ -88,10 +88,44 @@ z-scores of these (no lookahead). Raw features stay in
 same daily series, each row tagged with its generating policy (needed later to
 check whether a learned policy just mimics the dominant behavior policy).
 Action = scalar position in [-1, 1] (shorting enabled: -1 = fully short,
-+1 = fully long, config-driven). `momentum` longs on trailing returns and
-shorts on negative ones; `mean_reversion` is the symmetric contrarian
-(inverse of momentum). Reward = `a_t * ret_{t+1} - cost * |a_t|` (cost in
-bps, default 0).
++1 = fully long, config-driven).
+
+`momentum` and `mean_reversion` are FAMILIES, expanded into one policy per
+configured lookback window (tagged `<family>_<N>d` in the offline dataset):
+- momentum windows `{30, 40, 60, 80, 100, 120, 150, 200, 250}` days — longs
+  on positive trailing returns, shorts on negative, scaled by signal strength;
+- mean_reversion windows `{1..20}` days — the symmetric contrarian
+  (inverse of momentum on short windows).
+
+`nr7` is a SPECIALIZED SIGNAL FAMILY (one trajectory, not window-expanded):
+the classic NR7 narrow-range breakout, daily-close approximation. A day is
+NR7 when its high-low range is the narrowest of the last 7 trading days; at
+decision date t, if YESTERDAY was an NR7 day, go long (+1) when close[t]
+breaks above that day's high, short (-1) below its low, flat (0) otherwise
+(inside the range or no signal). Clean Long/Short/Flat vector, ~10.5% of
+days active.
+
+The per-window scale follows `scale_N = base * sqrt(N / ref_window)` so the
+position distribution is comparable across horizons (cumulative-return std
+grows ~ sqrt(N)). The multi-horizon returns are computed directly from the
+daily close and are NOT added to the state — the RL state stays the 8
+Phase-1 features. Reward = `a_t * ret_{t+1} - cost * |a_t|` (cost in bps,
+default 0). Config: `configs/data.yaml` -> `behavior_policies`.
+
+This yields 32 policy trajectories (9 momentum + 20 mean_reversion +
+buy_and_hold + random + nr7). Because windowed families start after their
+lookback warm-up, models C/D loaders intersect dates across the selected
+policies (only dates every trajectory covers are used).
+
+**NR7 + TACR result (PROJECT_NOTES 7.15)** — tested with double-Q and the
+original uniform sampler per the pre-registered protocol: double-Q **min**
++ uniform + nr7 gives the most seed-stable TACR pack yet (test Sharpe
+0.82 ± 0.15) but with ~zero EM margins (long-only ties — the 7.9.2
+knife-edge, stability without skill); double-Q **mean** + uniform + nr7 is
+the worst variant measured (0/5 vs EM, one degenerate always-short seed).
+The natural-diversification hypothesis is not supported in margin terms;
+no TACR configuration on the multi-window data clears the ≥3/5 EM-margin
+bar.
 
 ## Run the pipeline end to end
 
@@ -163,7 +197,8 @@ by date from Phase 1 -- never recomputed, never part of model input.
 **STATUS UPDATE (2026-08-17): the pipeline has been re-run since this
 audit — the CURRENT data is hole-free.** `features_regimes.parquet` now has
 0 gaps > 6 calendar days, spans 2005-01-03 -> 2026-03-31 (5,344 rows), and
-`offline_dataset.parquet` has 21,132 rows to 2026-03-30. The study horizon
+`offline_dataset.parquet` has 163,233 rows to 2026-03-30 (31 window-expanded
+behavior policies; see the Behavior policies section). The study horizon
 is capped at 2024-12-31 (`SPLIT_TEST_END`); `load_ddr_data` clips the path
 to it (310 dates beyond are dropped with a stderr warning). Consequences:
 
@@ -442,8 +477,9 @@ Automated Stock Trading using Reinforcement Learning", IEEE Access 2023
 `src/models/tacr/`: a Decision-Transformer-style causal transformer over
 interleaved (return-to-go, state, action) triples with an offline
 actor-critic update (critic TD + BC-regularized actor, paper eq. 4). Trained
-offline on the four behavior-policy trajectories (`offline_dataset.parquet`)
-with the same time splits and 5-seed protocol as Model B.
+offline on the window-expanded behavior-policy trajectories
+(`offline_dataset.parquet`, 31 policies) with the same time splits and
+5-seed protocol as Model B.
 
 ```bash
 python -m src.models.tacr.train --seed 20260814   # one seed; checkpoint -> checkpoints/tacr/s{seed}/

@@ -50,7 +50,15 @@ from src.models import SPLIT_TEST_END, SPLIT_TRAIN_END, SPLIT_VAL_END
 from src.models.ddr.data import compute_valid_mask
 
 Z_COLUMNS = [f"z_{c}" for c in FEATURE_COLUMNS]
-BEHAVIOR_POLICIES = ("momentum", "mean_reversion", "buy_and_hold", "random")
+
+
+def behavior_policy_tags(
+    available: tuple[str, ...], exclude_policies: tuple[str, ...] = ()
+) -> tuple[str, ...]:
+    """Effective TACR policy set: ``available`` minus excluded tags,
+    preserving order."""
+    excluded = set(exclude_policies)
+    return tuple(p for p in available if p not in excluded)
 
 
 @dataclass
@@ -74,12 +82,16 @@ class TACRData:
 def load_tacr_data(
     cfg_u: int | None = None,
     processed_dir: Path | None = None,
-    policies: tuple[str, ...] = BEHAVIOR_POLICIES,
+    policies: tuple[str, ...] | None = None,
+    exclude_policies: tuple[str, ...] = (),
 ) -> TACRData:
-    """Build the four behavior-policy trajectories from Phase-1 artifacts.
+    """Build the behavior-policy trajectories from Phase-1 artifacts.
 
     ``cfg_u`` is unused for loading (kept for a symmetric signature with
     Model B); context windows are cut at batch time from these trajectories.
+    ``policies`` defaults to ALL policy tags present in the offline dataset
+    (the window-expanded behavior families), minus ``exclude_policies``
+    (e.g. ``("random",)`` to drop the uniform demonstrator).
     """
     from src.models.tacr.config import TACRConfig
 
@@ -88,9 +100,22 @@ def load_tacr_data(
     features = pd.read_parquet(processed_dir / "features_regimes.parquet")
     dataset = pd.read_parquet(processed_dir / "offline_dataset.parquet")
 
-    dates = pd.DatetimeIndex(
-        sorted(dataset[dataset["policy"].isin(policies)]["date"].unique())
-    )
+    if policies is None:
+        policies = tuple(
+            sorted(set(dataset["policy"].unique()) - set(exclude_policies))
+        )
+    # policies have DIFFERENT date coverage (windowed families start after
+    # their lookback warm-up), so only dates present in EVERY selected
+    # policy's trajectory are usable: the shared-state design needs each
+    # policy to have a logged transition on every date.
+    date_sets = [
+        set(dataset[dataset["policy"] == pol]["date"].unique()) for pol in policies
+    ]
+    if any(len(s) == 0 for s in date_sets):
+        missing = [pol for pol, s in zip(policies, date_sets) if len(s) == 0]
+        raise ValueError(f"policies with no logged transitions: {missing}")
+    common = sorted(set.intersection(*date_sets))
+    dates = pd.DatetimeIndex(common)
     if len(dates) == 0:
         raise ValueError("no dates found for the behavior policies")
     states_np = features.reindex(dates)[Z_COLUMNS].to_numpy(dtype="float64")
@@ -192,8 +217,21 @@ def split_tacr_data(
     return {name: sel(mask) for name, mask in bounds.items()}
 
 
+def _family_of(policy: str) -> str:
+    """Family root of a policy tag: ``momentum_30d`` -> ``momentum``,
+    ``mean_reversion_10d`` -> ``mean_reversion``, ``buy_and_hold`` /
+    ``random`` -> themselves."""
+    if policy in ("buy_and_hold", "random"):
+        return policy
+    return policy.rsplit("_", 1)[0]
+
+
 def sample_batch(
-    split: TACRData, u: int, batch_size: int, rng: np.random.Generator
+    split: TACRData,
+    u: int,
+    batch_size: int,
+    rng: np.random.Generator,
+    balanced_families: bool = False,
 ) -> dict[str, torch.Tensor]:
     """Sample u-length segments fully inside the split (decision dates only).
 
@@ -202,11 +240,36 @@ def sample_batch(
     to the split. RTG values are the logged (realized) return-to-go — the
     conditioning target — so segments near the split end carry RTGs computed
     over the full logged trajectory (see module docstring).
+
+    Policy selection:
+    - ``balanced_families=False`` (paper default): a policy is drawn UNIFORMLY
+      over all trajectories — the mean_reversion family (20 windows) would
+      then supply ~67% of the BC signal and hijack the anchor.
+    - ``balanced_families=True``: FIRST a family is drawn uniformly over the
+      families present (momentum / mean_reversion / buy_and_hold / random),
+      THEN a specific policy/window uniformly inside that family. Each family
+      contributes 1/N_families of every batch, restoring a broad BC prior
+      regardless of how many windows a family has.
+
+    Returns states/actions/rewards/rtgs/timesteps plus ``policy_idx`` (the
+    sampled policy index per batch element, for family-accounting).
     """
     n_pol, t_len = split.actions.shape[:2]
     max_start = t_len - u
     starts = rng.integers(0, max_start + 1, size=batch_size)
-    pols = rng.integers(0, n_pol, size=batch_size)
+    if balanced_families:
+        families = sorted({_family_of(p) for p in split.policies})
+        fam_policies = {
+            f: [i for i, p in enumerate(split.policies) if _family_of(p) == f]
+            for f in families
+        }
+        fam_choice = rng.integers(0, len(families), size=batch_size)
+        pols = np.empty(batch_size, dtype=np.int64)
+        for j in range(batch_size):
+            members = fam_policies[families[fam_choice[j]]]
+            pols[j] = members[rng.integers(0, len(members))]
+    else:
+        pols = rng.integers(0, n_pol, size=batch_size)
 
     def take(t: torch.Tensor) -> torch.Tensor:
         if t.shape[0] == t_len:  # shared states (T, F), no policy dim
@@ -221,4 +284,5 @@ def sample_batch(
         "rewards": take(split.rewards),      # (B, u) immediate rewards (critic TD)
         "rtgs": take(split.rtgs),            # (B, u) return-to-go (actor conditioning)
         "timesteps": take(split.timesteps),  # (B, u) absolute positions
+        "policy_idx": pols,
     }

@@ -51,7 +51,6 @@ from src.models.d.fuzzy import FuzzyLayer
 from src.models.ddr.data import compute_valid_mask
 
 Z_COLUMNS = [f"z_{c}" for c in FEATURE_COLUMNS]
-BEHAVIOR_POLICIES = ("momentum", "mean_reversion", "buy_and_hold", "random")
 
 # fuzzy fields -> column index in the 8-d state vector (FEATURE_COLUMNS order)
 FUZZY_FIELD_INDICES = [FEATURE_COLUMNS.index(f) for f in FUZZY_FIELDS]
@@ -96,21 +95,38 @@ def make_windows(
     return windows, timesteps
 
 
-def load_d_data(cfg: DConfig, processed_dir: Path | None = None) -> DData:
-    """Build the per-policy transitions + fuzzy-augmented encoder input."""
+def load_d_data(
+    cfg: DConfig,
+    processed_dir: Path | None = None,
+    policies: tuple[str, ...] | None = None,
+) -> DData:
+    """Build the per-policy transitions + fuzzy-augmented encoder input.
+
+    ``policies`` defaults to ALL policy tags present in the offline dataset
+    (the window-expanded behavior families)."""
     processed_dir = processed_dir or (REPO_ROOT / "data" / "processed")
     features = pd.read_parquet(processed_dir / "features_regimes.parquet")
     dataset = pd.read_parquet(processed_dir / "offline_dataset.parquet")
 
-    dates = pd.DatetimeIndex(
-        sorted(dataset[dataset["policy"].isin(BEHAVIOR_POLICIES)]["date"].unique())
-    )
+    if policies is None:
+        policies = tuple(sorted(dataset["policy"].unique()))
+    # policies have DIFFERENT date coverage (windowed families start after
+    # their lookback warm-up), so only dates present in EVERY selected
+    # policy's trajectory are usable (shared-state design).
+    date_sets = [
+        set(dataset[dataset["policy"] == pol]["date"].unique()) for pol in policies
+    ]
+    if any(len(s) == 0 for s in date_sets):
+        missing = [pol for pol, s in zip(policies, date_sets) if len(s) == 0]
+        raise ValueError(f"policies with no logged transitions: {missing}")
+    common = sorted(set.intersection(*date_sets))
+    dates = pd.DatetimeIndex(common)
     if len(dates) == 0:
         raise ValueError("no dates found for the behavior policies")
     states_np = features.reindex(dates)[Z_COLUMNS].to_numpy(dtype="float64")
 
     per_policy = {}
-    for pol in BEHAVIOR_POLICIES:
+    for pol in policies:
         g = dataset[dataset["policy"] == pol].set_index("date").reindex(dates)
         per_policy[pol] = {
             "actions": g["action"].to_numpy(dtype="float64"),
@@ -118,9 +134,9 @@ def load_d_data(cfg: DConfig, processed_dir: Path | None = None) -> DData:
             "dones": g["done"].to_numpy(dtype="bool"),
         }
 
-    actions_np = np.stack([per_policy[p]["actions"] for p in BEHAVIOR_POLICIES], axis=0)
-    rewards_np = np.stack([per_policy[p]["rewards"] for p in BEHAVIOR_POLICIES], axis=0)
-    dones_np = np.stack([per_policy[p]["dones"] for p in BEHAVIOR_POLICIES], axis=0)
+    actions_np = np.stack([per_policy[p]["actions"] for p in policies], axis=0)
+    rewards_np = np.stack([per_policy[p]["rewards"] for p in policies], axis=0)
+    dones_np = np.stack([per_policy[p]["dones"] for p in policies], axis=0)
 
     regimes = features["regime"].reindex(dates)
     valid = compute_valid_mask(dates, features.index)
@@ -174,7 +190,7 @@ def load_d_data(cfg: DConfig, processed_dir: Path | None = None) -> DData:
         valid=torch.from_numpy(valid),
         market_returns=torch.tensor(market_returns, dtype=torch.float32),
         global_pos=np.arange(len(dates)),
-        policies=BEHAVIOR_POLICIES,
+        policies=policies,
         state_mean=state_mean,
         state_std=state_std,
         fuzzy=fuzzy,

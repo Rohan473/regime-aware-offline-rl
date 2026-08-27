@@ -38,8 +38,17 @@ def validate_config(cfg) -> None:
     if float(cfg.behavior_policies.position_min) > float(cfg.behavior_policies.position_max):
         problems.append("position_min must be <= position_max")
     for name, p in cfg.behavior_policies.policies.items():
-        if name not in ("momentum", "mean_reversion", "buy_and_hold", "random"):
-            problems.append(f"unknown behavior policy: {name!r}")
+        if name not in ("momentum", "mean_reversion", "buy_and_hold", "random", "nr7"):
+            problems.append(f"unknown behavior policy family: {name!r}")
+        if name in ("momentum", "mean_reversion"):
+            if not OmegaConf.is_list(p.windows) or len(p.windows) == 0:
+                problems.append(f"{name}.windows must be a non-empty list")
+            elif any(int(w) < 1 for w in p.windows):
+                problems.append(f"{name}.windows must all be >= 1")
+            if float(p.scale) <= 0:
+                problems.append(f"{name}.scale must be > 0")
+            if float(p.scale_ref_window) <= 0:
+                problems.append(f"{name}.scale_ref_window must be > 0")
     if problems:
         raise ValueError("config validation failed:\n  - " + "\n  - ".join(problems))
 

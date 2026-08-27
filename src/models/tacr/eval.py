@@ -36,8 +36,10 @@ from src.eval import regime_eval  # noqa: E402
 from src.models.ddr.config import DDRConfig  # noqa: E402
 from src.models.ddr.data import load_ddr_data, split_ddr_data  # noqa: E402
 from src.models.ddr.eval import roll_test_predictions as ddr_roll  # noqa: E402
+from src.models.tacr.action_model import ConditionalGaussian  # noqa: E402
 from src.models.tacr.config import TACRConfig  # noqa: E402
 from src.models.tacr.data import TACRData, load_tacr_data, split_tacr_data  # noqa: E402
+from src.models.tacr.fixes import bcq_constrain  # noqa: E402
 from src.models.tacr.policy import TACRPolicy  # noqa: E402
 
 SEEDS = [20260814, 1, 2, 3, 4]
@@ -46,7 +48,9 @@ BASIN_EPOCH_FRAC = 0.35  # good-basin runs peak in the first ~third of the sched
 CORR_FLAG = 0.7        # cross-seed test-prediction correlation below this => suspect
 
 
-def load_checkpoint(path: Path, cfg: TACRConfig) -> tuple[TACRPolicy, dict]:
+def load_checkpoint(
+    path: Path, cfg: TACRConfig
+) -> tuple[TACRPolicy, ConditionalGaussian | None, dict]:
     payload = torch.load(path, map_location="cpu", weights_only=False)
     model = TACRPolicy(
         state_dim=payload["state_dim"],
@@ -62,7 +66,12 @@ def load_checkpoint(path: Path, cfg: TACRConfig) -> tuple[TACRPolicy, dict]:
     )
     model.load_state_dict(payload["actor"])
     model.eval()
-    return model, payload
+    action_model = None
+    if "action_model" in payload:
+        action_model = ConditionalGaussian(payload["state_dim"], cfg.action_model_hidden)
+        action_model.load_state_dict(payload["action_model"])
+        action_model.eval()
+    return model, action_model, payload
 
 
 def roll_actions(
@@ -71,6 +80,8 @@ def roll_actions(
     data: TACRData,
     split_dates: pd.DatetimeIndex,
     rtg_target: float,
+    action_model: ConditionalGaussian | None = None,
+    bcq_phi: float = 0.0,
 ) -> np.ndarray:
     """Autoregressive action roll over decision dates (paper's eval).
 
@@ -79,6 +90,11 @@ def roll_actions(
     predictions, rtg = constant target, timesteps = absolute positions.
     Missing history before the series start is zero-padded (paper pads the
     same way in get_action).
+
+    With ``action_model`` (fix B), the deployed action is the BCQ-style
+    hard constraint of the actor's raw output around the generated action:
+    a = a_gen(s_t) + clamp(raw - a_gen(s_t), -bcq_phi, +bcq_phi). The
+    constrained action feeds back into the context and is the traded one.
     """
     u = cfg.u
     pos = {d: i for i, d in enumerate(data.dates)}
@@ -102,7 +118,11 @@ def roll_actions(
                 rt = torch.cat([torch.zeros(1, pad), rt], dim=1)
                 ts = torch.cat([torch.zeros(1, pad, dtype=torch.long), ts], dim=1)
             out = model(st, ac, rt, ts)
-            pred_actions[p] = float(out[0, -1])
+            a_raw = float(out[0, -1])
+            if action_model is not None and bcq_phi > 0:
+                a_gen = float(action_model(torch.tensor(states[p], dtype=torch.float32).unsqueeze(0)))
+                a_raw = a_gen + float(np.clip(a_raw - a_gen, -bcq_phi, bcq_phi))
+            pred_actions[p] = a_raw
     return pred_actions
 
 
@@ -117,14 +137,15 @@ def roll_test_predictions(
         checkpoint = cfg.checkpoint_dir / "tacr_best.pt"
     if not checkpoint.exists():
         raise FileNotFoundError(f"no checkpoint at {checkpoint} — run `python -m src.models.tacr.train` first")
-    model, _ = load_checkpoint(checkpoint, cfg)
+    model, action_model, _ = load_checkpoint(checkpoint, cfg)
     if data is None:
-        data = load_tacr_data(cfg.u)
+        data = load_tacr_data(cfg.u, exclude_policies=cfg.exclude_policies)
     splits = split_tacr_data(data)
     test = splits["test"]
     dates = test.dates
 
-    actions = roll_actions(model, cfg, data, dates, cfg.rtg_target)
+    actions = roll_actions(model, cfg, data, dates, cfg.rtg_target,
+                           action_model=action_model, bcq_phi=cfg.bcq_phi)
     # roll_actions returns the full-length array; extract the test dates
     actions = actions[data.dates.get_indexer(dates)]
     m = test.market_returns.numpy()
@@ -205,9 +226,9 @@ def regime_row(ret: np.ndarray, regime: np.ndarray, exposure: dict) -> dict:
 
 
 def main() -> None:
-    data = load_tacr_data(TACRConfig().u)
-    splits = split_tacr_data(data)
     cfg = TACRConfig.from_yaml()
+    data = load_tacr_data(cfg.u, exclude_policies=cfg.exclude_policies)
+    splits = split_tacr_data(data)
     cfg.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     print("=== per-seed test rolls + basin screening ===")

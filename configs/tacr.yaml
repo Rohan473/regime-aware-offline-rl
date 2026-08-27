@@ -45,6 +45,18 @@ training:
   critic_lr: 0.000001  # paper default for NDX/MDAX/CSI
   seed: 20260814
   device: cpu
+  # TACR trains on ALL window-expanded behavior families INCLUDING the
+  # uniform random demonstrator. With the family-balanced sampler, random
+  # is a 1-policy family capped at 1/N of the batch (not the ~25%+ share
+  # it would get under uniform policy sampling), so its noise is bounded
+  # while still contributing exploration coverage to the BC prior.
+  exclude_policies: []
+  # Family-balanced sampler: each family gets 1/N of every batch (then a
+  # window inside it), so the 20-window mean_reversion family cannot
+  # hijack the BC anchor. Off = paper's uniform-over-policies sampler.
+  balanced_families: true
+  # double-Q aggregation: mean (ensemble) instead of the pessimistic min.
+  double_q_mode: mean
 
 eval:
   rtg_target: 0.0      # constant return-to-go at val/test rolls (paper feeds zeros)

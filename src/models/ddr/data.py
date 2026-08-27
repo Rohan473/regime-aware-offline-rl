@@ -79,13 +79,13 @@ def compute_valid_mask(dates: pd.DatetimeIndex, features_index: pd.DatetimeIndex
 def load_ddr_data(
     window_size: int,
     processed_dir: Path | None = None,
-    behavior_policies: tuple[str, ...] = ("buy_and_hold", "momentum"),
+    behavior_policies: tuple[str, ...] = ("buy_and_hold",),
 ) -> DDRData:
     """Load Phase-1 artifacts and build the windowed market path.
 
     ``behavior_policies`` selects which logged trajectories define the market
-    path; as documented above, all policies share states so this selects the
-    unique path. All four are kept only for faithfulness to the spec.
+    path; all policies share states, so any single policy selects the unique
+    path. Default is ``buy_and_hold`` (all policies cover the same dates).
     """
     processed_dir = processed_dir or (REPO_ROOT / "data" / "processed")
     features = pd.read_parquet(processed_dir / "features_regimes.parquet")

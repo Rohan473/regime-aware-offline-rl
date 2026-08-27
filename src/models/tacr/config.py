@@ -54,6 +54,37 @@ class TACRConfig:
     critic_lr: float = 1e-6               # paper default for NDX/MDAX/CSI
     seed: int = 20260814
 
+    # --- structural fixes (defaults OFF = paper-faithful objective). Each
+    #     targets the documented Q-collapse mechanism (PROJECT_NOTES 7.6),
+    #     NOT hyperparameters: A = clipped double Q, B = BCQ-style hard
+    #     action constraint, C = PAR direction-aware BC target replacement.
+    use_double_q: bool = False     # A: min of two critic targets (TD3-style)
+    double_q_mode: str = "min"     #    double-Q aggregation: "min" (TD3) | "mean" (ensemble)
+    use_bcq: bool = False          # B: hard constraint around a generative action model
+    bcq_phi: float = 0.5           #    max |action - generated| (data-support radius)
+    bcq_bc_coeff: float = 0.0      #    BC weight alongside the constraint (0 = constraint only)
+    use_par: bool = False          # C: direction-aware BC target replacement
+    par_phi: float = 0.5           #    projection radius around the logged action
+    par_cos_thresh: float = 0.0    #    replace BC target when cos(Q-grad, BC-dir) < thresh
+    par_bc_coeff: float = 1.0      #    BC weight applied to the (possibly replaced) target
+    action_model_hidden: int = 64  #    generative model width (fix B)
+    action_model_steps: int = 2000 #    pretrain steps for the generative model
+    action_model_lr: float = 1e-3
+    action_model_batch: int = 256
+
+    # --- behavior-policy selection ---
+    # Which logged policy trajectories TACR trains on. Default () = ALL
+    # policies in the offline dataset (the window-expanded families +
+    # buy_and_hold + random). Set e.g. ("random",) to exclude the uniform
+    # random demonstrator from the BC anchor / critic support.
+    exclude_policies: tuple[str, ...] = ()
+    # Family-balanced batch sampler: FIRST pick a family uniformly (1/N),
+    # THEN a policy/window inside it, so every family contributes equally
+    # to the BC prior regardless of window count (offsets the mean_reversion
+    # dominance under uniform policy sampling). Default False = paper's
+    # uniform-over-policies sampler.
+    balanced_families: bool = False
+
     # --- eval / artifacts ---
     rtg_target: float = 0.0               # constant return-to-go at roll time (paper feeds zeros)
     checkpoint_dir: Path = field(default_factory=lambda: Path(__file__).parent / "checkpoints")
@@ -69,6 +100,8 @@ class TACRConfig:
         d.update({k: v for k, v in raw.model.items() if k in d})
         d.update({k: v for k, v in raw.training.items() if k in d})
         d.update({k: v for k, v in raw.eval.items() if k in d})
+        if not isinstance(d["exclude_policies"], tuple):
+            d["exclude_policies"] = tuple(d["exclude_policies"])
         cfg = cls(**d)
         cfg.checkpoint_dir = Path(cfg.checkpoint_dir)
         if not cfg.checkpoint_dir.is_absolute():
@@ -93,6 +126,8 @@ class TACRConfig:
             problems.append("n_head must be >= 1")
         if self.action_head not in ("tanh", "gaussian"):
             problems.append("action_head must be 'tanh' or 'gaussian'")
+        if self.double_q_mode not in ("min", "mean"):
+            problems.append("double_q_mode must be 'min' or 'mean'")
         if self.epochs < 1 or self.steps_per_epoch < 1:
             problems.append("epochs and steps_per_epoch must be >= 1")
         if self.batch_size < 1:
@@ -107,5 +142,13 @@ class TACRConfig:
             problems.append("tau must be in (0, 1]")
         if self.max_ep_len < self.u:
             problems.append("max_ep_len must be >= u")
+        if self.bcq_phi <= 0 or self.par_phi <= 0:
+            problems.append("bcq_phi and par_phi must be > 0")
+        if not -1.0 <= self.par_cos_thresh <= 1.0:
+            problems.append("par_cos_thresh must be in [-1, 1]")
+        if self.bcq_bc_coeff < 0 or self.par_bc_coeff < 0:
+            problems.append("bcq_bc_coeff and par_bc_coeff must be >= 0")
+        if self.action_model_steps < 1 or self.action_model_batch < 1:
+            problems.append("action_model_steps and action_model_batch must be >= 1")
         if problems:
             raise ValueError("invalid TACRConfig: " + "; ".join(problems))

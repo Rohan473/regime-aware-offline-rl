@@ -7,75 +7,49 @@ is rolled over the SAME daily series and logs
 ``(state, action, reward, next_state, done)``; reward is
 ``a_t * ret_{t+1}`` minus an optional linear transaction cost.
 
-Four policies:
+Policy families:
   momentum        long when trailing return > 0, short when < 0, scaled by
-                  signal strength (symmetric)
-  mean_reversion  contrarian on a short window: short rips, buy dips,
-                  scaled by signal strength (symmetric)
+                  signal strength (symmetric). ONE policy per configured
+                  window (``momentum_30d``, ``momentum_40d``, ...).
+  mean_reversion  contrarian on short windows: short rips, buy dips,
+                  scaled by signal strength (symmetric). ONE policy per
+                  configured window (``mean_reversion_1d``, ... ``_20d``).
   buy_and_hold    constant target allocation
   random          uniform draws inside the position limits (exploration)
+  nr7             SPECIALIZED SIGNAL FAMILY (not window-expanded): the
+                  classic NR7 narrow-range breakout, daily-close
+                  approximation. A day d is an NR7 day when its high-low
+                  range is the narrowest of the 7 trading days ending at d
+                  (ties allowed). At decision date t (close), if YESTERDAY
+                  (t-1) was an NR7 day and today's close broke OUT of that
+                  day's range — close[t] > high[t-1] -> LONG (+1) for
+                  t->t+1 (breakout continuation); close[t] < low[t-1] ->
+                  SHORT (-1); still inside the range, or no NR7 signal ->
+                  FLAT (0). Clean Long/Short/Flat vector; needs the OHLC
+                  columns (high/low) of the daily frame. Warm-up: the
+                  7-day range minimum must be defined at t-1 (8 rows).
 
-Policy trajectories are logged with a ``policy`` tag so later diagnostics
-can measure how much each behavior policy contributed to the dataset.
+The windowed families compute their trailing log return DIRECTLY from the
+daily close (``log(close).diff().rolling(window).sum()``) — the multi-horizon
+returns are NOT added to the feature/state frame, so the RL state stays the
+8-dimensional Phase-1 feature vector and all downstream model code is
+unaffected. Each window is a separate trajectory tagged
+``<family>_<N>d``.
+
+Scale normalization: ``scale_N = base_scale * sqrt(N / scale_ref_window)``
+(see configs/data.yaml). A uniform scale across windows would shrink fast
+windows to near-flat positions and saturate long windows at +/-1; the
+sqrt rule keeps the demonstrator's position distribution comparable
+because cumulative-return std grows ~ sqrt(N).
 """
 
 from __future__ import annotations
-
-from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 
 from .technical_factors import FEATURE_COLUMNS
-
-
-@dataclass
-class TransitionBuffer:
-    """Accumulates (state, action, reward, next_state, done) rows."""
-
-    states: list[np.ndarray] = field(default_factory=list)
-    actions: list[float] = field(default_factory=list)
-    rewards: list[float] = field(default_factory=list)
-    next_states: list[np.ndarray] = field(default_factory=list)
-    dones: list[bool] = field(default_factory=list)
-    dates: list[pd.Timestamp] = field(default_factory=list)
-    regimes: list[str] = field(default_factory=list)
-
-    def push(self, state, action, reward, next_state, done, date, regime):
-        self.states.append(np.asarray(state, dtype=np.float64))
-        self.actions.append(float(action))
-        self.rewards.append(float(reward))
-        self.next_states.append(np.asarray(next_state, dtype=np.float64))
-        self.dones.append(bool(done))
-        self.dates.append(date)
-        self.regimes.append(regime)
-
-    def to_frame(self, state_cols: list[str], policy_name: str) -> pd.DataFrame:
-        if not self.dates:
-            raise ValueError(f"policy '{policy_name}' produced zero transitions")
-        df = pd.DataFrame(
-            {
-                "policy": policy_name,
-                "date": self.dates,
-                "action": self.actions,
-                "reward": self.rewards,
-                "done": self.dones,
-                "regime": self.regimes,
-            }
-        )
-        for j, col in enumerate(state_cols):
-            df[col] = [row[j] for row in self.states]
-        for j, col in enumerate(state_cols):
-            df[f"next_{col}"] = [row[j] for row in self.next_states]
-        return df
-
-
-def _clip_action(a: float, cfg: DictConfig) -> float:
-    lo, hi = float(cfg.behavior_policies.position_min), float(cfg.behavior_policies.position_max)
-    if lo > hi:
-        raise ValueError("position_min must be <= position_max")
-    return min(max(a, lo), hi)
 
 
 def _position_limits(cfg: DictConfig) -> tuple[float, float]:
@@ -93,44 +67,36 @@ def _action_cols(cfg: DictConfig) -> list[str]:
 STATE_COLUMNS = [f"z_{c}" for c in FEATURE_COLUMNS]
 
 
-def momentum_action(state: pd.Series, cfg: DictConfig) -> float:
-    """Symmetric momentum: long on positive trailing return, short on
-    negative, magnitude scaled by signal strength."""
-    window = int(cfg.behavior_policies.policies.momentum.window)
-    scale = float(cfg.behavior_policies.policies.momentum.scale)
-    ret = state[f"ret_{window}d"]
-    if np.isnan(ret):
-        raise ValueError("momentum policy saw NaN trailing return; warm-up rows must be dropped upstream")
-    lo, hi = _position_limits(cfg)
-    return _clip_action(np.clip(ret / scale, lo, hi), cfg)
+def _expanded_policy_specs(cfg: DictConfig) -> dict[str, dict]:
+    """Expand the configured families into concrete policies.
+
+    momentum / mean_reversion become one policy per window, tagged
+    "<family>_<N>d"; scale follows ``base * sqrt(N / scale_ref_window)``.
+    Returns {policy_name: {"family", "window", "scale"}}.
+    """
+    specs: dict[str, dict] = {}
+    for name, p in cfg.behavior_policies.policies.items():
+        if name == "buy_and_hold":
+            specs["buy_and_hold"] = {"family": "buy_and_hold", "window": None, "scale": None}
+        elif name == "random":
+            specs["random"] = {"family": "random", "window": None, "scale": None}
+        elif name == "nr7":
+            # specialized signal family: one trajectory, no window expansion
+            specs["nr7"] = {"family": "nr7", "window": None, "scale": None}
+        elif name in ("momentum", "mean_reversion"):
+            base = float(p.scale)
+            ref = float(p.scale_ref_window)
+            for w in p.windows:
+                scale = base * np.sqrt(int(w) / ref)
+                specs[f"{name}_{int(w)}d"] = {"family": name, "window": int(w), "scale": scale}
+        else:
+            raise ValueError(f"unknown behavior policy family: {name!r}")
+    return specs
 
 
-def mean_reversion_action(state: pd.Series, cfg: DictConfig) -> float:
-    """Symmetric contrarian: short rips, buy dips (inverse of momentum on a
-    short window), magnitude scaled by signal strength."""
-    window = int(cfg.behavior_policies.policies.mean_reversion.window)
-    scale = float(cfg.behavior_policies.policies.mean_reversion.scale)
-    ret = state[f"ret_{window}d"]
-    if np.isnan(ret):
-        raise ValueError("mean-reversion policy saw NaN trailing return; warm-up rows must be dropped upstream")
-    lo, hi = _position_limits(cfg)
-    return _clip_action(np.clip(-ret / scale, lo, hi), cfg)
-
-
-def buy_and_hold_action(state: pd.Series, cfg: DictConfig) -> float:
-    target = float(cfg.behavior_policies.policies.buy_and_hold.target_allocation)
-    return _clip_action(target, cfg)
-
-
-class RandomPolicy:
-    """Uniform positions inside [position_min, position_max]; seeded."""
-
-    def __init__(self, seed: int):
-        self._rng = np.random.default_rng(seed)
-
-    def action(self, state: pd.Series, cfg: DictConfig) -> float:
-        lo, hi = float(cfg.behavior_policies.position_min), float(cfg.behavior_policies.position_max)
-        return float(self._rng.uniform(lo, hi))
+def policy_names(cfg: DictConfig) -> list[str]:
+    """The expanded concrete policy names for the configured families."""
+    return list(_expanded_policy_specs(cfg).keys())
 
 
 def roll_policy(
@@ -141,49 +107,112 @@ def roll_policy(
     cfg: DictConfig,
     seed: int,
 ) -> pd.DataFrame:
-    """Roll one policy over the daily series, logging transitions.
+    """Roll one policy over the daily series, logging transitions (vectorized).
 
     A transition at date t uses state = features[t], action chosen from
     features[t] only (causal), reward = a_t * ret[t+1] - cost.
     done=True only on the final transition of the trajectory.
 
-    Rows with NaN features or regime are skipped (warm-up), but a transition
-    is only emitted when BOTH t and t+1 rows are valid (next_state needed).
+    Rows with NaN features or regime are skipped (warm-up); windowed
+    families additionally skip rows before their window's rolling return
+    is defined. A transition is only emitted when BOTH t and t+1 rows are
+    valid (next_state needed). All per-date arrays are built with pandas
+    ``reindex`` + numpy vector ops (no Python loop) so 30+ windowed
+    policies roll quickly.
     """
+    spec = _expanded_policy_specs(cfg)[policy_name]
+    family = spec["family"]
+    window = spec["window"]
     state_cols = _action_cols(cfg)
-    random_policy = RandomPolicy(seed) if policy_name == "random" else None
     cost_bps = float(cfg.dataset.transaction_cost_bps)
     cost = cost_bps / 1e4
+    lo, hi = _position_limits(cfg)
+
+    if window is not None:
+        log_close = np.log(pd.Series(features["close"].to_numpy(dtype="float64"), index=features.index))
+        ret_at = log_close.diff().rolling(window).sum()
+    else:
+        ret_at = None
 
     valid = features.notna().all(axis=1) & regimes.notna()
+    if ret_at is not None:
+        valid = valid & ret_at.notna()
+    if family == "nr7":
+        rng = features["high"] - features["low"]
+        # NR7 warm-up: the 7-day range minimum must be defined at t-1
+        # (the signal at t looks at YESTERDAY's NR7 status), i.e. rows
+        # t-7..t-1 must exist.
+        valid = valid & rng.rolling(7).min().shift(1).notna()
     idx = features.index[valid]
+    n = len(idx) - 1
+    if n <= 0:
+        raise ValueError(f"policy '{policy_name}' produced zero transitions")
 
-    buf = TransitionBuffer()
-    for pos in range(len(idx) - 1):
-        t, t_next = idx[pos], idx[pos + 1]
-        raw_state = features.loc[t, FEATURE_COLUMNS]
-        if policy_name == "momentum":
-            action = momentum_action(raw_state, cfg)
-        elif policy_name == "mean_reversion":
-            action = mean_reversion_action(raw_state, cfg)
-        elif policy_name == "buy_and_hold":
-            action = buy_and_hold_action(raw_state, cfg)
-        elif policy_name == "random":
-            action = random_policy.action(raw_state, cfg)
-        else:
-            raise ValueError(f"unknown policy: {policy_name!r}")
+    t, t_next = idx[:-1], idx[1:]
+    states = features.reindex(t)[STATE_COLUMNS].to_numpy(dtype="float64")
+    next_states = features.reindex(t_next)[STATE_COLUMNS].to_numpy(dtype="float64")
+    ret_next = daily_returns.reindex(t_next).to_numpy(dtype="float64")
+    if np.isnan(ret_next).any():
+        raise ValueError(
+            f"NaN daily return at {t_next[np.isnan(ret_next)][0]}; pipeline data is corrupt"
+        )
 
-        # RL state is the z-scored features (columns state_cols == z_*), NOT raw.
-        state = features.loc[t, STATE_COLUMNS].to_numpy()
-        next_state = features.loc[t_next, STATE_COLUMNS].to_numpy()
-        ret_next = float(daily_returns.loc[t_next])
-        if np.isnan(ret_next):
-            raise ValueError(f"NaN daily return at {t_next}; pipeline data is corrupt")
-        reward = action * ret_next - cost * abs(action)
-        done = pos == len(idx) - 2
-        buf.push(state, action, reward, next_state, done, t, regimes.loc[t])
+    if family == "momentum":
+        ret = ret_at.reindex(t).to_numpy(dtype="float64")
+        if np.isnan(ret).any():
+            raise ValueError("momentum policy saw NaN trailing return; warm-up rows must be dropped upstream")
+        actions = np.clip(ret / spec["scale"], lo, hi)
+    elif family == "mean_reversion":
+        ret = ret_at.reindex(t).to_numpy(dtype="float64")
+        if np.isnan(ret).any():
+            raise ValueError("mean-reversion policy saw NaN trailing return; warm-up rows must be dropped upstream")
+        actions = np.clip(-ret / spec["scale"], lo, hi)
+    elif family == "buy_and_hold":
+        target = float(cfg.behavior_policies.policies.buy_and_hold.target_allocation)
+        actions = np.full(n, target)
+    elif family == "nr7":
+        high = features["high"]
+        low = features["low"]
+        close = features["close"]
+        rng = high - low
+        rng_min7 = rng.rolling(7).min()
+        # NR7 day: high-low range is the narrowest of the 7 trading days
+        # ending at it (ties allowed — inclusive minimum).
+        nr7_day = (rng == rng_min7) & rng_min7.notna()
+        nr7_prev = nr7_day.shift(1).fillna(False).astype(bool)
+        hi_prev = high.shift(1)
+        lo_prev = low.shift(1)
+        up = nr7_prev & (close > hi_prev)   # upside breakout confirmed at t
+        dn = nr7_prev & (close < lo_prev)   # downside breakout confirmed at t
+        sig = up.astype("float64") - dn.astype("float64")
+        actions = sig.reindex(t).to_numpy(dtype="float64")
+        if np.isnan(actions).any():
+            raise ValueError("nr7 policy saw NaN signal; warm-up rows must be dropped upstream")
+    elif family == "random":
+        actions = np.random.default_rng(seed).uniform(lo, hi, size=n)
+    else:
+        raise ValueError(f"unknown behavior policy: {policy_name!r}")
+    actions = np.clip(actions, lo, hi)
 
-    return buf.to_frame(state_cols, policy_name)
+    reward = actions * ret_next - cost * np.abs(actions)
+    done = np.zeros(n, dtype=bool)
+    done[-1] = True
+
+    df = pd.DataFrame(
+        {
+            "policy": policy_name,
+            "date": t,
+            "action": actions,
+            "reward": reward,
+            "done": done,
+            "regime": regimes.reindex(t).to_numpy(),
+        }
+    )
+    for j, col in enumerate(state_cols):
+        df[col] = states[:, j]
+    for j, col in enumerate(state_cols):
+        df[f"next_{col}"] = next_states[:, j]
+    return df
 
 
 def run_all_policies(
@@ -192,9 +221,10 @@ def run_all_policies(
     regimes: pd.Series,
     cfg: DictConfig,
 ) -> pd.DataFrame:
-    """Roll every configured behavior policy and concatenate trajectories."""
+    """Roll every configured behavior policy (window-expanded) and
+    concatenate trajectories."""
     seed = int(cfg.behavior_policies.seed)
-    names = list(cfg.behavior_policies.policies.keys())
+    names = policy_names(cfg)
     frames = [
         roll_policy(features, daily_returns, regimes, name, cfg, seed=seed)
         for name in names
