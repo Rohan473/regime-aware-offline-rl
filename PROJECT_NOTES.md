@@ -2153,23 +2153,29 @@ headline. The chain is the deliverable.
       next-day intraday-range trend even predictable here?).
     - RESULTS (scripts/hybrid_trend_paper.py; (featset, tau, clf) selected on
       VAL by mean 5-seed val composite Sharpe, test untouched):
-        selected: FULL features (16 + ATR + range), tau=0.0075, MLP
-        next-day intraday-range base rate 0.789 | classifier acc 0.796
-        (vs always-trend 0.789 — essentially NO predictive power)
-        trade rate 0.897 (the filter barely filters)
-        filtered pack mean test Sharpe 1.127 +- 0.13 (vs C+ 1.146)
-        | margins +0.303, 5/5
-    - PRE-REGISTERED BAR OUTCOME: FAIL on the Sharpe leg (1.127 < 1.146;
-      margins 5/5 pass). The paper's ACTUAL framing does not beat C+ either.
-    - MECHANISM (the reason, now direct): next-day intraday-range trend-ness
-      is UNPREDICTABLE from the available features (classifier acc 0.796 ~=
-      the 0.789 always-trend base rate). At the paper's thresholds (0.5-1.0%
-      of close) a trend day is the MAJORITY class on SPY (78.9% of days at
-      0.75% — SPY's daily range is ~1%), so the filter trades ~90% of days
-      and degenerates to near-unfiltered C+. The paper's premise (trend vs
-      oscillation is classifiable) does not transfer because (a) the label is
-      a majority class on this asset and (b) the features carry no
-      next-day-range signal.
+      *** SUPERSEDED — the original run used daily high/low that a
+      data-integrity audit found CORRUPT (bad ticks in the raw minute bars,
+      2005-2013); those numbers are invalid. The data was cleaned and the
+      test re-run in §7.25 (corrected result below). ***
+      CORRECTED (clean data): selected PAPER featset (VIX/RSI/ATR/range),
+      tau=0.005, MLP | next-day range base rate 0.945 (trend = majority at
+      0.5%) | classifier acc 0.939 (~ base — no predictive power) | trade
+      rate 0.994 (barely filters) | filtered pack Sharpe 1.146 +- 0.11 (==
+      C+), margins +0.308, 5/5.
+      [historical, corrupted data — DO NOT CITE]: selected FULL, tau=0.0075,
+      MLP | base 0.789 | acc 0.796 | trade 0.897 | Sharpe 1.127 | +0.303.
+    - PRE-REGISTERED BAR OUTCOME (corrected, clean data): FAIL on the Sharpe
+      leg (filtered 1.146 == C+ 1.146, NOT >; margins 5/5 pass). The paper's
+      ACTUAL framing does not beat C+ either.
+    - MECHANISM (the reason, now direct, on clean data): next-day
+      intraday-range trend-ness is UNPREDICTABLE from the available features
+      (classifier acc 0.939 ~= the 0.945 always-trend base rate). At the
+      paper's thresholds (0.5-1.0% of close) a trend day is the MAJORITY
+      class on SPY (94.5% of days at 0.5% — SPY's daily range is ~1%), so
+      the filter trades ~99% of days and degenerates to (near-)unfiltered
+      C+. The paper's premise (trend vs oscillation is classifiable) does
+      not transfer because (a) the label is a majority class on this asset
+      and (b) the features carry no next-day-range signal.
     - DEVIATION (flagged): macro-announcement indicators are in the paper's
       feature set but unavailable here (no announcement calendar) — "the
       paper's method minus the announcement channel". RF and MLP were both
@@ -2180,6 +2186,53 @@ headline. The chain is the deliverable.
       the label is a majority class and is not predictable. This closes the
       7.20 follow-up: the null was NOT a close-to-close proxy artifact; the
       actual method is also null. C+ remains canonical (1.146, +0.296, 5/5).
+
+------------------------------------------------------------------------------
+7.25 DATA-INTEGRITY FINDING — CORRUPT HIGH/LOW (2026-08-27)
+------------------------------------------------------------------------------
+    - DISCOVERY (user, during review of hybrid_trend_paper.py): the daily
+      frame's HIGH/LOW columns contain corrupt values — 41 daily rows with a
+      high > 1.5x close (e.g. 2009-06-25 high 100,000.00 vs close 91.95;
+      2005-07-12 high 23,200 vs close 122.23; 2013-09-06 high 16,166) or a
+      low < 0.5x close (e.g. 2007-09-11 low 1.86 vs close 147.36;
+      2009-09-21 low 8.23). `close` is CLEAN (all prior audits — anchors,
+      regimes, momentum — checked close, never high/low; this is why it
+      went undetected).
+    - ROOT CAUSE (traced to source): the corruption is in the RAW minute
+      bars (SPY_YYYY.parquet), not the resampler — 68 corrupt minute ticks
+      across 2005-2013 (23/15/15/5/5/1/2/2 by year): a single bar whose high
+      or low (or open) is a glitch print (e.g. high 99,999.99 on 2009-06-25;
+      open 58.74 / close 129.81 on 2006-02-27). The daily resample's max/min
+      faithfully propagates each bad tick into the daily high/low. The
+      minute-level structural check (high >= low, positive) passes because
+      the bad values keep OHLC structure internally consistent.
+    - FIX (src/data/loaders.py):
+      * `_drop_corrupt_minutes`: a minute bar is dropped (loud stderr
+        warning with count + dates) when its high/low is implausible vs its
+        OWN open/close (>25% intra-minute excursion), or its open-to-close
+        move >25% of the smaller. Removal of a demonstrably corrupt
+        observation, not synthetic substitution. 68 bars dropped, 2005-2013.
+      * `_validate_daily_ranges`: a FAIL-LOUD guard on DAILY frames (high >
+        1.5x close OR low < 0.5x close -> raise), wired into the resample
+        path AND the cache-load path, so surviving corruption is never
+        silently used. The same philosophy as the Phase-1 hole guard.
+      * `_CLEANING_VERSION` in the cache manifest digest: a rule change
+        forces a daily-cache rebuild (the stale cached daily with corrupt
+        high/low is invalidated).
+    - IMPACT: features_regimes.parquet / offline_dataset.parquet regenerated
+      on the clean daily frame (same row counts, 0 high/low issues). Only the
+      §7.24 paper-method test used SPY high/low (range + ATR features); Model
+      B/C/D, the macro features and the §7.20 close-to-close trend filter are
+      UNAFFECTED. The 7.24 result was invalidated by the corruption and is
+      re-run below. Suite 78/78.
+    - CORRECTED §7.24 RESULT (clean data): selected PAPER featset (VIX/RSI/
+      ATR/range), tau=0.005, MLP | next-day range base rate 0.945 (trend is
+      the majority at 0.5%) | classifier acc 0.939 (~ base — no predictive
+      power) | trade rate 0.994 (the filter barely filters) | filtered pack
+      Sharpe 1.146 +- 0.11 (== C+), margins +0.308, 5/5. The bar still
+      FAILS on the Sharpe leg. The 7.24 null STANDS on clean data: the
+      paper's framing does not transfer because next-day intraday-range
+      trend is a majority class and is unpredictable.
 
 ------------------------------------------------------------------------------
 7.23 KELLY-SIZED C+ VARIANT (2026-08-26)

@@ -579,8 +579,13 @@ choice, not a data limitation) and uses an L2 logistic on the sign model's
 own 16 features (the paper's RF/NN + ATR/macro-announcement classifiers are
 not implemented). The null is therefore scoped: a return-based,
 same-features logistic proxy for that paper's trend/oscillation framing did
-not transfer to the C+ sign model — the paper's actual method (intraday-range
-label, RF/NN + ATR/announcement features) is untested here.
+not transfer to the C+ sign model. The paper's ACTUAL method (intraday-range
+label via the daily high/low, RF/NN + ATR/announcement classifiers) was then
+tested in 7.24 and is ALSO a null (the next-day intraday-range label is a
+94% majority class and unpredictable; the filter degenerates to unfiltered)
+— and that test surfaced a DATA-INTEGRITY bug: the daily high/low columns
+carried 68 corrupt minute-tick glitches (2005-2013), now cleaned at load
+with a fail-loud daily range guard (7.25).
 
 ### Model C+ — TACR magnitude x linear sign + macro (THE result)
 

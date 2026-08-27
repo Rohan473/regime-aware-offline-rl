@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +29,10 @@ from omegaconf import DictConfig, OmegaConf
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 REQUIRED_COLUMNS = ["timestamp", "open", "high", "low", "close", "volume"]
+
+# Bump when the corrupt-tick cleaning rule changes so the daily cache digest
+# (which includes this) forces a rebuild.
+_CLEANING_VERSION = 2
 
 
 def resolve_path(cfg: DictConfig, key: str) -> Path:
@@ -39,6 +44,64 @@ def resolve_path(cfg: DictConfig, key: str) -> Path:
         node = node[part]
     p = Path(str(node))
     return p if p.is_absolute() else (REPO_ROOT / p)
+
+
+def _drop_corrupt_minutes(raw: pd.DataFrame) -> pd.DataFrame:
+    """Drop corrupt minute bars (glitch ticks) before daily resampling.
+
+    A minute bar is corrupt when its high or low is implausible relative to
+    its OWN open/close — a >25% intra-minute excursion (SPY never moves that
+    far in a minute), or its open-to-close move is >25% of the smaller
+    (a bar whose open is a bad-tick print and close is the real price). Bad
+    ticks like a high of 99,999.99 or a low of 1.86
+    otherwise propagate into the daily high/low via the resample max/min,
+    corrupting every high/low-derived feature (ATR, intraday range) — the
+    same class of data-integrity failure as the Phase-1 holes (PROJECT_NOTES
+    7.24). Dropping the bar is a removal of a demonstrably corrupt
+    observation, not a synthetic substitution.
+    """
+    o, h, l, c = raw["open"], raw["high"], raw["low"], raw["close"]
+    hi = np.maximum(o, c)
+    lo = np.minimum(o, c)
+    bad = (h > 1.25 * hi) | (l < 0.8 * lo) | (h < l) | (hi > 1.25 * lo)
+    n = int(bad.sum())
+    if n:
+        dates = sorted({pd.Timestamp(ts).strftime("%Y-%m-%d") for ts in raw.index[bad]})
+        sample = ", ".join(dates[:8]) + (" ..." if len(dates) > 8 else "")
+        print(
+            f"[loaders] DROPPED {n} corrupt minute bars (glitch ticks: high/low "
+            f"implausible vs open/close); affected dates: {sample}",
+            file=sys.stderr,
+        )
+        raw = raw[~bad]
+    if len(raw) == 0:
+        raise RuntimeError("all minute bars were dropped as corrupt")
+    return raw
+
+
+def _validate_daily_ranges(df: pd.DataFrame, source: str) -> None:
+    """Loud guard on DAILY high/low plausibility (the 7.24 finding).
+
+    A daily high > 1.5x the close or low < 0.5x the close is physically
+    impossible for SPY on a normal session and indicates a corrupt tick
+    survived resampling. This is a FAIL-LOUD check, not a silent fix.
+    """
+    if (df["high"] > 1.5 * df["close"]).any():
+        i = int(np.flatnonzero((df["high"] > 1.5 * df["close"]))[0])
+        raise ValueError(
+            f"daily OHLCV from {source} has high {df['high'].iloc[i]:.2f} > "
+            f"1.5x close {df['close'].iloc[i]:.2f} on {df.index[i].date()}: a "
+            f"corrupt tick survived resampling. Fix the raw minute data / "
+            f"cleaning rule."
+        )
+    if (df["low"] < 0.5 * df["close"]).any():
+        i = int(np.flatnonzero((df["low"] < 0.5 * df["close"]))[0])
+        raise ValueError(
+            f"daily OHLCV from {source} has low {df['low'].iloc[i]:.2f} < "
+            f"0.5x close {df['close'].iloc[i]:.2f} on {df.index[i].date()}: a "
+            f"corrupt tick survived resampling. Fix the raw minute data / "
+            f"cleaning rule."
+        )
 
 
 def _validate_daily(df: pd.DataFrame, source: str) -> None:
@@ -107,6 +170,7 @@ def _read_raw_file(path: Path) -> pd.DataFrame:
         raise ValueError(f"{path.name}: no valid rows")
     raw = raw.set_index("timestamp").sort_index()
     _validate_daily(raw, path.name)
+    raw = _drop_corrupt_minutes(raw)
     return raw
 
 
@@ -128,10 +192,14 @@ def _manifest_of(files: list[Path], resample_cfg: DictConfig) -> dict:
         for f in files
     ]
     resample_dict = OmegaConf.to_container(resample_cfg, resolve=True)
-    payload = json.dumps({"files": entries, "resample": resample_dict}, sort_keys=True)
+    payload = json.dumps(
+        {"files": entries, "resample": resample_dict, "cleaning": _CLEANING_VERSION},
+        sort_keys=True,
+    )
     return {
         "files": entries,
         "resample": resample_dict,
+        "cleaning": _CLEANING_VERSION,
         "digest": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
     }
 
@@ -148,6 +216,7 @@ def _resample_daily(raw: pd.DataFrame, cfg: DictConfig) -> pd.DataFrame:
     daily = daily.dropna(subset=["open", "high", "low", "close"])
     daily = daily[daily["volume"] > 0]
     _validate_daily(daily, "resampled minute data")
+    _validate_daily_ranges(daily, "resampled minute data")
     _validate_continuity(daily, "resampled minute data")
     daily.index.name = "date"
     return daily
@@ -191,6 +260,7 @@ def load_daily_ohlcv(cfg: DictConfig, *, force_rebuild: bool = False) -> pd.Data
         daily.index = pd.to_datetime(daily.index)
         daily.index.name = "date"
         _validate_daily(daily, "cached daily OHLCV")
+        _validate_daily_ranges(daily, "cached daily OHLCV")
         _validate_continuity(daily, "cached daily OHLCV")
         _warn_missing_years(daily, cfg)
         return daily
