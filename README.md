@@ -1,14 +1,36 @@
 # Regime-Aware Uncertainty Modeling for Offline RL in Financial Markets
 
-Research codebase comparing four models (B: DDR-style recurrent, C: TACR-style
-Transformer actor-critic, D: target model with fuzzy uncertainty layer + offline
-RL (IQL) + BC regularization, D-ablation: D minus the fuzzy layer) on
-identical data and identical regime-conditional evaluation.
+Research codebase comparing offline-RL trading models on identical SPY data
+and a shared, regime-conditional evaluation (train <= 2018-12-31, val
+2019-2020, test 2021-2024; per-seed EM margins reported alongside every
+win count — the 7.9.2 protocol rule):
 
-**Current session scope (done):** repository scaffolding, data pipeline, regime
-labeling, multi-behavior-policy offline dataset generation.
-**Out of scope (do NOT build):** Model A baseline, Models B/C/D, `src/models/`
-and `src/eval/` are empty by design.
+- **Model B** — DDR-style recurrent baseline: a GRU policy trained by direct
+  backprop through the Differential Sharpe Ratio (Moody & Saffell 1998).
+  Canonical = naive DSR retrained on the current hole-free data; pack mean
+  test Sharpe 0.99 ± 0.24 (good-basin pack 1.10 ± 0.04), EM margins +0.19.
+- **Model C** — TACR-style Transformer actor-critic (Lee & Moon, IEEE Access
+  2023). As a standalone actor it is the project's structural-failure case
+  (below EM, negative margins, val->test collapse), despite clipped double-Q
+  and family-balanced samplers. The paper's deviations are documented in
+  `configs/tacr.yaml` and PROJECT_NOTES 7.6.
+- **Model C+** (the project's best) — a HYBRID that decouples the two skills
+  TACR splits: the Transformer supplies **leverage timing** (|a|, from the
+  seed-stable double-Q/nr7 pack), and a simple L2 logistic regression on
+  **8 SPY + 8 macro/cross-asset features** supplies **directional sign**.
+  Pack mean test Sharpe **1.15**, EM margins **5/5 (+0.30)** — the first
+  configuration to clear the ≥3/5 margin bar and to beat Model B. Robust
+  under a shifted-split check; the edge is strongest in crisis windows.
+  PROJECT_NOTES 7.17-7.22.
+- **Model D** — fuzzy-uncertainty ablation: a fixed interval type-2 fuzzy
+  layer + causal transformer + IQL. Stable (no collapse, thin positive
+  margins) but the fuzzy layer is null vs its ablation.
+
+No real model beats buy-and-hold on raw cumulative returns alone (Model C+:
+test-window cum +0.26..+0.69, mean ~+0.49, vs B&H +0.59 at 100% exposure)
+— the project's edge claims rest on the exposure-matched margin (Sharpe of
+the strategy minus Sharpe of its own long-only sizing control), which is
+scale-invariant and isolates directional skill from position sizing.
 
 ## Environment
 
@@ -48,7 +70,8 @@ the pipeline path fixes itself at import time and fails loudly otherwise.
 ## Data
 
 - Raw source: the downloader writes yearly `SPY_YYYY.parquet` files of 1-minute
-  bars into the repo root (currently 2005..2015, **download still in progress**).
+  bars into the repo root (2005..2026, backfilled and hole-free; see the data
+  integrity audit below).
 - `src/data/loaders.py` reads all matching files, resamples minute bars to daily
   OHLCV (grouped by America/New_York trading date), and caches to
   `data/processed/daily_ohlcv.parquet` guarded by a manifest of input file
@@ -65,6 +88,18 @@ the pipeline path fixes itself at import time and fails loudly otherwise.
 volume_zscore_20d, bollinger_pos` (8 total). RL state = causal expanding
 z-scores of these (no lookahead). Raw features stay in
 `data/processed/features_regimes.parquet` for inspection.
+
+## Macro / cross-asset features (for the Model C+ sign head)
+
+`data/macro/*.parquet` holds daily series fetched from Yahoo's public chart
+API (`scripts/fetch_macro.py`, keyless, manifested): TLT (20y+), ^TNX (10y
+yield), ^VIX, ^VIX3M, DX-Y.NYB (dollar), HYG, QQQ, IWM, and ^SKEW (sentiment).
+`src/data/macro_factors.py` turns them into 8 causal features aligned to the
+SPY calendar (plus `sentiment_skew`): risk-on spread (SPY−TLT), 10y-yield
+delta (1d/5d), vol term structure (VIX3M−VIX), 20d SPY−DXY correlation,
+credit proxy (HYG−TLT, price-based), and SPY−QQQ / SPY−IWM relative strength.
+These live ONLY in the C+ linear sign model — the four-model state stays 8-d
+(adding them to the TACR/B/D state is a deferred, protocol-breaking decision).
 
 ## Regimes: {bull, bear, crisis}
 
@@ -197,8 +232,8 @@ by date from Phase 1 -- never recomputed, never part of model input.
 **STATUS UPDATE (2026-08-17): the pipeline has been re-run since this
 audit — the CURRENT data is hole-free.** `features_regimes.parquet` now has
 0 gaps > 6 calendar days, spans 2005-01-03 -> 2026-03-31 (5,344 rows), and
-`offline_dataset.parquet` has 163,233 rows to 2026-03-30 (31 window-expanded
-behavior policies; see the Behavior policies section). The study horizon
+`offline_dataset.parquet` has 168,516 rows to 2026-03-30 (32 window-expanded
+behavior policies incl. nr7; see the Behavior policies section). The study horizon
 is capped at 2024-12-31 (`SPLIT_TEST_END`); `load_ddr_data` clips the path
 to it (310 dates beyond are dropped with a stderr warning). Consequences:
 
@@ -462,14 +497,16 @@ naive behavior.
 ## Config
 
 - `configs/data.yaml` — raw data location, universe, resample, features, dataset
-  cost, behavior policy windows/scales/seed.
+  cost, behavior policy windows/scales/seed (window-expanded families + nr7).
 - `configs/regimes.yaml` — all regime thresholds + hysteresis parameters.
   Nothing regime-related is hardcoded.
 - `configs/ddr.yaml` — Model B (DDR) shared config (vol-targeting + artifacts).
 - `configs/tacr.yaml` — Model C (TACR) shared config; paper values with the
-  flagged deviations from PROJECT_NOTES 7.6.
+  flagged deviations from PROJECT_NOTES 7.6 plus the structural-fix /
+  sampler / exclusion fields (`use_double_q`, `double_q_mode`,
+  `balanced_families`, `exclude_policies`, `use_bcq`/`use_par`, ...).
 
-## Model C: TACR baseline (Phase 3)
+## Model C: TACR baseline (Phase 3) + Model C+ hybrid (the project's best)
 
 Reproduction of Lee & Moon, "Transformer Actor-Critic with Regularization:
 Automated Stock Trading using Reinforcement Learning", IEEE Access 2023
@@ -478,27 +515,35 @@ Automated Stock Trading using Reinforcement Learning", IEEE Access 2023
 interleaved (return-to-go, state, action) triples with an offline
 actor-critic update (critic TD + BC-regularized actor, paper eq. 4). Trained
 offline on the window-expanded behavior-policy trajectories
-(`offline_dataset.parquet`, 31 policies) with the same time splits and
-5-seed protocol as Model B.
+(`offline_dataset.parquet`, 32 policies incl. nr7) with the same time splits
+and 5-seed protocol as Model B.
 
 ```bash
 python -m src.models.tacr.train --seed 20260814   # one seed; checkpoint -> checkpoints/tacr/s{seed}/
 python -m src.models.tacr.train                    # default seed (configs/tacr.yaml)
 python -m src.models.tacr.eval                     # 5-seed rolls + basin screening + vs Model B/EM
+python scripts/hybrid_sign_macro.py                # Model C+ (TACR |a| x logistic sign on 8 SPY + 8 macro)
 ```
+
+The paper-faithful default is now `balanced_families: true` (family-balanced
+batch sampler so the 20-window mean_reversion family cannot hijack the BC
+anchor), `exclude_policies: []` (random re-included as a capped family) and
+`double_q_mode: mean`; pass `--no-balanced-families` / `--no-exclude` /
+`--double-q-mode min` to reproduce earlier runs.
 
 - **Eval protocol matches Model B exactly** (same splits, same regime
   breakdown; per-regime Sharpe primary, blended secondary; crisis regime
   caveat: 15 test days — directionally suggestive only, NOT a finding).
-- **No future information at roll time**: eval feeds a constant RTG of 0.0
-  (the paper's eval feeds zeros) with the model's own autoregressive actions.
+- **No future information at roll time**: eval feeds a constant RTG (0.0 by
+  default) with the model's own autoregressive actions.
 - **Basin screening carried from Model B** (PROJECT_NOTES 7.5.5): flag runs
   whose best-val epoch is anomalously late (>35% of the schedule) or whose
-  test actions correlate < 0.7 with the pack; flagged seeds are reseeded,
-  never included. See `checkpoints/tacr/basin_screening.csv`.
-- Validated by `tests/test_tacr.py` (causal-masking perturbation test, BC
-  gradient test, Model B context-alignment test, RTG correctness, eval
-  determinism) — full suite 54/54.
+  test actions correlate < 0.7 with the pack. See
+  `checkpoints/tacr/basin_screening.csv`.
+- Validated by `tests/test_tacr.py` + `tests/test_tacr_fixes.py`
+  (causal-masking perturbation, BC gradient, Model B context alignment, RTG
+  correctness, double-Q / BCQ / PAR helpers, family-balanced sampler) —
+  suite 78/78.
 - Deviations from the paper (n_layer 4 vs 5; Linear+tanh vs Linear+Softmax
   action head; true return-to-go vs the paper code's immediate-reward
   channel; train-split-only normalization; 3k-step CPU-scaled budget;
@@ -506,30 +551,59 @@ python -m src.models.tacr.eval                     # 5-seed rolls + basin screen
   docstrings, `configs/tacr.yaml`, and PROJECT_NOTES 7.6.
 
 Artifacts under `src/models/tacr/checkpoints/tacr/`: `s{seed}/tacr_best.pt` +
-`training_log.csv` per seed; `regime_eval.csv` (regime breakdown vs Model B
-and EM), `vs_model_b.csv`, `basin_screening.csv` from the eval CLI.
-Notebook: `notebooks/03_tacr_training.ipynb`.
+`training_log.csv` per seed; `regime_eval.csv`, `vs_model_b.csv`,
+`basin_screening.csv` from the eval CLI; the structural-fix / sampler / nr7
+variants under their `ctl_*` / `fix_*` / `*_nr7` tags. Notebook:
+`notebooks/03_tacr_training.ipynb`.
 
-**Result — TACR-as-reproduced-here does NOT clear the bar on this data
-(final; budget confound ruled out; scoped — SPY, B's feature set,
-u=20, tanh-head actions, alpha 0.9).**
-Test all-days Sharpe 0.61 +- 0.20 (seeds 0.26/0.80/0.80/0.60/0.61) vs EM
-0.80 +- 0.11 and Model B 0.99 +- 0.24; TACR beats EM 1/5 seeds (criterion
->= 3/5 not met), takes more exposure (mean|a| 0.39 vs 0.26) for less
-return. The 13x CPU budget cut vs the paper's 40k steps was re-checked
-with a 20k-step run (paper-proportional warmup): seed 1 dropped from 0.80
-to 0.02 test Sharpe — longer training hurts, it does not help, so the
-verdict is structural, not an undertraining artifact. Mechanism: TACR's
-val Sharpe does not transfer to test, and a final-epoch check (pre-
-registered bar) confirms it is not a selection-rule problem — no
-checkpoint on the 20k trajectory generalizes (best-val and final-epoch
-test Sharpe are both ~ -0.05 to -0.10); a 100x faster critic makes
-selection worse, not better.
-Basin screening flags all 5 seeds mechanically (no cohesive pack:
-cross-seed corr 0.17-0.78 vs B's 0.93-0.98; the low corr is partly an
-undertraining artifact — seed 1 rises to 0.73-0.87 at 20k — but the pack
-converges onto the same underperforming region); the verdict is
-basin-independent. Details: PROJECT_NOTES 7.6.1-7.6.2.
+### Standalone TACR — structural failure, confirmed at 3k and 20k (historical)
+
+Test all-days Sharpe 0.61 +- 0.20 vs EM 0.80 +- 0.11 and Model B 0.99 +- 0.24;
+TACR beats EM 1/5 seeds. A 20k-step run made it worse (0.80 -> 0.02); no
+checkpoint on any trajectory generalizes (final-epoch check). The mechanism
+is Q-inflation collapse: the actor loss goes negative as the critic's Q rises
+and overwhelms the BC term. Structural fixes were tested per a pre-registered
+protocol (PROJECT_NOTES 7.10): clipped double-Q kills the collapse
+signature and produced the old-data margin +0.105 (4/5), but on the new
+multi-window data no sampler/Q-aggregation variant (uniform, balanced,
+random in/out, min/mean Q) cleared the ≥3/5 margin bar (7.12-7.14). The
+RTG-relaxation lever is small (positive target ≈ training-median RTG adds
+~+0.05 Sharpe; the 90th percentile hurts). Trend-day filtering (7.20),
+focal-loss sign retraining (7.21) and SKEW sentiment (7.22) are all closed
+as nulls.
+
+### Model C+ — TACR magnitude x linear sign + macro (THE result)
+
+TACR's standalone failure is its DIRECTIONAL SIGN (margins ~0); its LEVERAGE
+TIMING (|a|) matches/exceeds the exposure-matched control. The hybrid
+decouples them:
+
+    a_t = sign_logistic(s_t) * |a_TACR(s_t)|
+
+where the logistic is L2-regularized on the 8 SPY + 8 macro causal z-features
+(C selected on val, test untouched) and |a| comes from the seed-stable
+double-Q-min/uniform/nr7 pack (Sharpe 0.82 ± 0.15, tightest TACR variance).
+
+**Result — pack mean test Sharpe 1.15 (5 seeds), EM margins 5/5 (+0.30):
+the first configuration to clear the ≥3/5 margin bar and to beat Model B.**
+Mechanism (decomposed): the sign model shorts only ~6% of days, and on those
+days TACR's own sign was long on ALL of them — the linear head fixes TACR's
+worst sign errors (net-losing long days flipped to winning shorts). The
+margin is tail-concentrated (return-weighted down days), C-robust, and
+honest out-of-sample (train-only fit, C on val, test untouched).
+
+The 8 macro features are the load-bearing addition: on identical train dates
+the margin is +0.30 with macro vs +0.18 without. A shifted-split robustness
+check (test 2020-23 and 2022-24) shows the macro edge is regime-contingent —
+largest in the crisis-heavy window (+0.30 delta) where the price-only sign
+degrades — never materially harmful. Sentiment (CBOE SKEW) as a 17th feature
+was tested and is a null (degrades the fit; §7.22).
+
+Run: `python scripts/hybrid_sign.py` (8-feature) / `scripts/hybrid_sign_macro.py`
+(16-feature, canonical) / `scripts/hybrid_robustness.py` (shifted splits) /
+`scripts/hybrid_trend_filter.py` (filter, null) / `scripts/focal_sign.py`
+(focal loss, null) / `scripts/hybrid_sentiment.py` (SKEW, null). Details:
+PROJECT_NOTES 7.17-7.22.
 
 ## Model D: fuzzy + transformer + IQL (Phase 4)
 
@@ -582,11 +656,12 @@ skill, short side on 13-31% of days), C **-0.18** (anti-skill — its
 shorts lose vs passive same-exposure holding; 3/4 negative on the intact
 3k seeds — the 5th was overwritten by the 7.6.2 20k rerun, whose margin
 is also negative), D **+0.02-0.03** (thin, never negative: stability, not
-skill comparable to B's). Canonical-B is strengthened (vt posted the same
-4/5 count on ~70x thinner margins); C's failure is sharpened (not a tie
-artifact); D's screen pass is re-classified as thin-margin. Win counts
-are never reported without margins in this project. Details:
-PROJECT_NOTES 7.9.2. Scope: fixed-MF IT2 over these 3 features on this
+skill comparable to B's), and **Model C+ +0.30** (the hybrid's 5/5 — the
+largest margin in the project, §7.18). Canonical-B is strengthened (vt
+posted the same 4/5 count on ~70x thinner margins); C's failure is
+sharpened (not a tie artifact); D's screen pass is re-classified as
+thin-margin; C+ is the new headline. Win counts are never reported without
+margins in this project. Details: PROJECT_NOTES 7.9.2. Scope: fixed-MF IT2 over these 3 features on this
 data; learned MFs / u=60 logged as future work. Details: PROJECT_NOTES
 7.9.
 

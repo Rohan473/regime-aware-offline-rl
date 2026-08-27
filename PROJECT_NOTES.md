@@ -6,22 +6,38 @@ This file is a complete record of everything done in this project, in order,
 with the final verdict stated plainly at the end. Read it top to bottom if
 you are new; the last two sections are the ones that matter.
 
---------------------------------------------------------------------------------
-1. PROJECT OVERVIEW
---------------------------------------------------------------------------------
+**CURRENT STATE (2026-08-26) — the project's best result is Model C+ (section
+7.17-7.22):** a hybrid that decouples TACR's two skills. The Transformer
+(fix_a_nr7, double-Q-min/uniform/nr7) supplies LEVERAGE TIMING |a|; a simple
+L2 logistic on 8 SPY + 8 macro/cross-asset causal features supplies
+DIRECTIONAL SIGN. Pack mean test Sharpe 1.15, EM margins 5/5 (+0.30) — the
+first configuration to clear the >= 3/5 margin bar and to beat Model B.
+The 8 macro features (rates, vol term structure, dollar, credit proxy,
+cross-market momentum — fetched into data/macro/) are the load-bearing
+addition (margin +0.30 with vs +0.18 without). Regime-filtering, focal-loss
+sign retraining and SKEW sentiment were tested and are nulls (7.20-7.22).
 
-Two phases, specified by the user:
+Phases, in order:
 
   Phase 1 (complete, verified): a reproducible data pipeline that builds a
   daily OHLCV frame, 8 technical features (z-scored, causal), regime labels
-  {bull, bear, crisis}, 4 behavior policies (buy_and_hold, momentum,
-  mean_reversion, random) with actions in [-1, 1] (shorting enabled), and an
-  offline RL dataset of transitions (state, action, reward, next_state).
+  {bull, bear, crisis}, behavior-policy families (buy_and_hold, momentum at
+  9 windows, mean_reversion at 20 windows, random, nr7 — 32 policies total)
+  with actions in [-1, 1] (shorting enabled), and an offline RL dataset of
+  transitions (state, action, reward, next_state).
 
-  Phase 2 (complete, null result): Model B, a DDR (Differential Sharpe
-  Ratio) baseline — a GRU policy trained by direct backprop through the DSR
-  reward (Moody & Saffell 1998) on the offline state sequence, evaluated
-  per regime on a strict time split.
+  Phase 2 (complete): Model B, a DDR (Differential Sharpe Ratio) baseline —
+  a GRU policy trained by direct backprop through the DSR reward (Moody &
+  Saffell 1998) on the offline state sequence, evaluated per regime on a
+  strict time split.
+
+  Phase 3 (complete): Model C, the TACR Transformer actor-critic (Lee &
+  Moon 2023). As a standalone actor it is the project's structural-failure
+  case (7.6, 7.10-7.16); its leverage timing is salvageable and is the
+  magnitude source of Model C+.
+
+  Phase 4 (complete): Model D, the fuzzy-uncertainty ablation — stable, but
+  the fuzzy layer is null (7.9-7.9.2).
 
 The single most important outcome of the project is NOT the model. It is the
 discovery and root-causing of TWO independent failure modes:
@@ -33,6 +49,9 @@ discovery and root-causing of TWO independent failure modes:
   (2) REWARD HACKING: the DSR reward's variance-reduction bias made the
       policy de-lever to ~1/3 exposure — its entire apparent Sharpe edge
       over buy-and-hold decomposes into position sizing, not signal.
+
+  (Both were resolved in later phases: the holes were backfilled (7.5.4),
+  and the C+ hybrid's directional edge is margin-verified, not sizing.)
 
 --------------------------------------------------------------------------------
 2. ENVIRONMENT
@@ -2076,6 +2095,27 @@ headline. The chain is the deliverable.
       the reachable source (Yahoo) is SKEW (put/call ratios are not
       exposed, CNN Fear&Greed/AAII are off-source). Model C+ stands at 16
       features: [TACR |a|] x [CE logistic, 8 SPY + 8 macro].
+
+------------------------------------------------------------------------------
+FINAL VERDICT (2026-08-26)
+------------------------------------------------------------------------------
+    - Model C+ is the project's best result: a hybrid that decouples TACR's
+      two skills — Transformer LEVERAGE TIMING (|a| from fix_a_nr7) and a
+      linear DIRECTIONAL SIGN on 8 SPY + 8 macro causal features. Pack mean
+      test Sharpe 1.15, EM margins 5/5 (+0.30), the first configuration to
+      clear the >= 3/5 margin bar and to beat Model B (0.99). The macro
+      features are the load-bearing addition (7.18); the result is robust
+      under shifted splits, strongest in crisis windows (7.19).
+    - What failed (all pre-registered, all nulls): TACR standalone and every
+      sampler/Q-aggregation/structural variant below the bar (7.10-7.14);
+      RTG relaxation is a small lever (7.16); trend-day filtering (7.20),
+      focal-loss sign retraining (7.21) and SKEW sentiment (7.22) are
+      closed nulls. Model D's fuzzy layer is null (7.9). Model B remains a
+      strong baseline but not the best model.
+    - The deliverable, as ever, is the discipline: every headline number is
+      decomposed to margins, every protocol bar is pre-registered, and the
+      two Phase-2 failure modes (data contamination, reward hacking) were
+      root-caused rather than papered over.
 
 ------------------------------------------------------------------------------
 END OF NOTES
