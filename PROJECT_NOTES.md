@@ -1987,25 +1987,53 @@ headline. The chain is the deliverable.
         0.0050  0.459       +0.287  0.777   5/5   (user's suggested 0.5%)
         0.0075  0.224       -0.005  0.752   2/5
         0.0100  0.088       -0.011  0.632   0/5
-    - READING (the paper's premise is INVERTED on this data): the trend
+    - SCOPE CAVEAT (added 2026-08-26, on closer reading of the cited paper —
+      Azizi, JRFM 19(4) 262): this test is an ADAPTATION of the paper's
+      framing, not a reproduction, on two axes that weaken any claim about
+      "the paper's premise":
+      (a) THRESHOLD VARIABLE: the paper defines oscillation/trend on the
+          INTRADAY HIGH-LOW RANGE of a session; this test used the
+          CLOSE-TO-CLOSE return |r_{t+1}|. NOTE (corrected 2026-08-26): the
+          daily frame DOES carry high/low (features_regimes.parquet has
+          open/high/low/close), so the session's intraday range
+          (daily_high - daily_low) IS constructible — the raw 1-minute
+          bars also carry per-minute high/low. The close-to-close proxy was
+          an IMPLEMENTATION CHOICE, not a data limitation; the paper's
+          threshold variable could be built and tested as a follow-up. A
+          big intraday swing that closes flat is "trend" under the paper's
+          definition but "oscillation" under the close-to-close proxy.
+      (b) CLASSIFIER + FEATURES: the paper uses Random Forest / Neural
+          Network classifiers with macro-announcement indicators and
+          VIX/RSI/ATR as trend-detection features; this test used an L2
+          logistic on the SIGN MODEL's own 16 features (8 SPY + 8 macro),
+          with no ATR or announcement channel.
+      So the correct claim is narrower than "the paper's premise is
+      inverted": a RETURN-BASED, SAME-FEATURES LOGISTIC PROXY for the
+      paper's trend/oscillation framing does not transfer to the C+ sign
+      model on SPY.
+    - READING (scoped to the proxy, not the paper's method): the trend
       filter only helps at the MILDEst setting (remove 9% of days). The
       user's suggested 0.5% threshold DESTROYS the margin (0.78 Sharpe,
       from 1.15). Mechanism check (tau=0.005): the ~54% predicted-
       "oscillation" days that the aggressive filter REMOVES have sign
       accuracy 0.544 (ABOVE the 0.539 overall) and NET-POSITIVE composite
       P&L (+0.165, seed 20260814) — i.e. the sign model's edge lives in
-      the SMALL-move days, not the big-move "trend" days. Filtering to
-      trend days removes the profitable days. (Small moves are
-      predictably mean-reverting/trending; big moves are news-driven
-      idiosyncratic noise — the opposite of the cited paper's premise.)
+      the SMALL-move days, not the big-move days. Filtering to the big-move
+      days removes the profitable days. (Small moves are predictably
+      mean-reverting/trending; big moves are news-driven idiosyncratic
+      noise — consistent with the proxy's failure, NOT evidence against
+      the paper's intraday-range method, which was not tested.)
     - NET: the pre-registered bar passed formally (val-selection found the
-      trivial 9% filter), but the regime-first hypothesis is NOT supported:
-      aggressive trend filtering is strongly harmful, and the small +0.13
-      Sharpe at tau=0.003 is a mild removal of the smallest-move days, not
-      the paper's mechanism. The robust improvement to C+ remains the MACRO
-      features (7.18), not the trend filter. A Focal-Loss retrain of the
-      sign classifier (the user's secondary suggestion) is untested and
-      could be a follow-up; the binary filter direction is closed.
+      trivial 9% filter), but the trend/oscillation regime-first hypothesis
+      is NOT supported by this proxy: aggressive filtering is strongly
+      harmful, and the small +0.13 Sharpe at tau=0.003 is a mild removal of
+      the smallest-move days, not a regime effect. Whether the paper's
+      ACTUAL method (intraday-range label, RF/NN + ATR/announcement
+      features) transfers is untested here and would need those inputs.
+      The robust improvement to C+ remains the MACRO features (7.18), not
+      the trend filter. A Focal-Loss retrain of the sign classifier (the
+      user's secondary suggestion) is untested and could be a follow-up;
+      the return-based filter direction is closed.
 
 ------------------------------------------------------------------------------
 7.21 FOCAL-LOSS SIGN CLASSIFIER FOR MODEL C+ (2026-08-26)
@@ -2095,6 +2123,113 @@ headline. The chain is the deliverable.
       the reachable source (Yahoo) is SKEW (put/call ratios are not
       exposed, CNN Fear&Greed/AAII are off-source). Model C+ stands at 16
       features: [TACR |a|] x [CE logistic, 8 SPY + 8 macro].
+
+------------------------------------------------------------------------------
+7.24 PAPER-METHOD TEST — INTRADAY-RANGE TREND LABELS + RF/NN (2026-08-26)
+------------------------------------------------------------------------------
+    - MOTIVATION (user): 7.20 tested a close-to-close proxy of the Azizi
+      (JRFM 2026) trend/oscillation framing and it was null. The paper's
+      ACTUAL threshold variable (session INTRADAY HIGH-LOW range, which the
+      daily frame's high/low columns provide — confirmed present) plus its
+      classifier families (Random Forest / Neural Network) and trend features
+      (VIX, RSI, ATR) were not tested. This closes that gap.
+    - SETUP (scripts/hybrid_trend_paper.py):
+      * Label (next-day trend): y_trend_t = I(range_{t+1} > tau), range_t =
+        (high_t - low_t) / close_t. tau in the paper's {0.5%, 0.75%, 1.0%}.
+      * Classifiers: RandomForestClassifier (n_estimators=200, max_depth=8,
+        min_samples_leaf=20) and MLPClassifier (32 hidden, early stopping) —
+        ONE reasonable un-tuned config per family, selected together with tau
+        on VAL by mean 5-seed val composite Sharpe (test untouched).
+      * Features (causal, z-scored): PAPER = [VIX level, RSI, ATR(14),
+        current-day range]; FULL = the 16 C+ features + ATR(14) + range.
+      * DEVIATION FLAGGED: the paper's macro-ANNOUNCEMENT indicators are not
+        available (no announcement calendar in this repo) — "the paper's
+        method minus the announcement channel".
+      * Composite: a_t = I(trend_pred=1) * sign_logistic(s_t) * |a_TACR(s_t)|,
+        same fix_a_nr7 magnitude + margin convention as C+.
+    - PRE-REGISTERED BAR (same as C+): filtered pack-mean test Sharpe > 1.146
+      AND margin > 0 in >= 3/5 seeds. Also report trend-day rate and
+      next-day-range prediction accuracy vs base rate (the key question: is
+      next-day intraday-range trend even predictable here?).
+    - RESULTS (scripts/hybrid_trend_paper.py; (featset, tau, clf) selected on
+      VAL by mean 5-seed val composite Sharpe, test untouched):
+        selected: FULL features (16 + ATR + range), tau=0.0075, MLP
+        next-day intraday-range base rate 0.789 | classifier acc 0.796
+        (vs always-trend 0.789 — essentially NO predictive power)
+        trade rate 0.897 (the filter barely filters)
+        filtered pack mean test Sharpe 1.127 +- 0.13 (vs C+ 1.146)
+        | margins +0.303, 5/5
+    - PRE-REGISTERED BAR OUTCOME: FAIL on the Sharpe leg (1.127 < 1.146;
+      margins 5/5 pass). The paper's ACTUAL framing does not beat C+ either.
+    - MECHANISM (the reason, now direct): next-day intraday-range trend-ness
+      is UNPREDICTABLE from the available features (classifier acc 0.796 ~=
+      the 0.789 always-trend base rate). At the paper's thresholds (0.5-1.0%
+      of close) a trend day is the MAJORITY class on SPY (78.9% of days at
+      0.75% — SPY's daily range is ~1%), so the filter trades ~90% of days
+      and degenerates to near-unfiltered C+. The paper's premise (trend vs
+      oscillation is classifiable) does not transfer because (a) the label is
+      a majority class on this asset and (b) the features carry no
+      next-day-range signal.
+    - DEVIATION (flagged): macro-announcement indicators are in the paper's
+      feature set but unavailable here (no announcement calendar) — "the
+      paper's method minus the announcement channel". RF and MLP were both
+      in the selection grid; MLP won on val. VIX/RSI/ATR/range (PAPER
+      featset) and the 16+ATR+range (FULL) were both in the grid; FULL won.
+    - NET: the paper's intraday-range trend/oscillation method, tested
+      faithfully (minus announcements), does NOT improve C+ as a filter —
+      the label is a majority class and is not predictable. This closes the
+      7.20 follow-up: the null was NOT a close-to-close proxy artifact; the
+      actual method is also null. C+ remains canonical (1.146, +0.296, 5/5).
+
+------------------------------------------------------------------------------
+7.23 KELLY-SIZED C+ VARIANT (2026-08-26)
+------------------------------------------------------------------------------
+    - IDEA (user): the C+ composite uses TACR's learned |a| for sizing, but
+      the logistic's CONFIDENCE (P(up|s)) is discarded. Replace the TACR
+      magnitude with fractional-Kelly sizing from the probability:
+          a_t = k * (2*P(up|s_t) - 1) / sigma_t^2    (vol-scaled)
+          a_t = k * (2*P(up|s_t) - 1)                 (constant-variance)
+      sigma_t = causal trailing 20d std of SPY daily returns. Sign = the
+      same logistic. Kelly concentrates capital on high-conviction days and
+      penalizes high-variance days — the principled answer to "what size?"
+      that Sharpe/DSR objectives structurally cannot give (7.2 finding).
+    - KEY PROPERTY (flagged pre-run): the composite Sharpe and the EM margin
+      are SCALE-INVARIANT to k (Sharpe is scale-free; both a and |a| scale
+      together), so k only sets the absolute exposure, not the headline
+      metric. k is selected on VAL for the exposure level; the test metric
+      is the SHAPE of the sizing vs TACR's.
+    - PRE-REGISTERED PROTOCOL (before running): fit the same 16-feature
+      logistic (C on val); select k per variant on val by mean 5-seed val
+      composite Sharpe; TEST untouched. Compare:
+        * kelly_vol   : a = clip(k(2P-1)/sigma^2, -1, 1)
+        * kelly_const : a = clip(k(2P-1), -1, 1)
+      vs C+ (TACR |a|): pack mean test Sharpe 1.146, margins 5/5 (+0.30).
+      BAR (same as C+): pack-mean test Sharpe > 1.146 AND margin > 0 in
+      >= 3/5 (margins vs each variant's OWN EM). Report exposure (mean|a|)
+      and drawdown as the k-dependent secondary.
+    - RESULTS (scripts/hybrid_kelly.py; k selected on VAL, test untouched;
+      the kelly strategy is DETERMINISTIC — no TACR magnitude, so a single
+      point estimate vs the C+ 5-seed pack):
+        variant  k(val)  valSh  test Sharpe  margin  mean|a|  maxDD
+        const    10      0.792  0.8251      +0.062  0.780   -0.20
+        vol      0.01    1.186  1.0986      +0.284  0.969   -0.19
+        C+ (TACR |a|)                1.1463 +- 0.11  +0.296  5/5
+      (vol = a = k(2P-1)/sigma^2 with causal 20d SPY vol; const = k(2P-1).)
+    - PRE-REGISTERED BAR OUTCOME: FAIL on the Sharpe leg for BOTH variants
+      (vol 1.099 < 1.146; const 0.825). The margin leg PASSES (vol +0.284,
+      const +0.062, both positive).
+    - READING (parsimony result, not an improvement): the vol-scaled Kelly
+      sizing a = k(2P-1)/sigma^2 — a PURE logistic probability + causal vol,
+      with NO transformer — reproduces the C+ margin (+0.284 vs +0.296) and
+      comes within the C+ pack's own seed std of its Sharpe (1.099 vs 1.146
+      +- 0.11). So TACR's learned |a| is NOT needed to extract the hybrid
+      edge; a probability/variance sizing matches it. But it does NOT beat
+      it — the transformer's sizing is marginally better, and the const
+      (probability-only) variant is clearly worse (0.825), so the 1/sigma^2
+      variance penalty is load-bearing (consistent with the tail-concentrated
+      margin). Kelly is a viable, more parsimonious substitute for the C+
+      magnitude, not a strict improvement.
+    - C+ remains canonical (1.146, +0.296, 5/5).
 
 ------------------------------------------------------------------------------
 FINAL VERDICT (2026-08-26)

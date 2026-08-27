@@ -570,7 +570,17 @@ random in/out, min/mean Q) cleared the ≥3/5 margin bar (7.12-7.14). The
 RTG-relaxation lever is small (positive target ≈ training-median RTG adds
 ~+0.05 Sharpe; the 90th percentile hurts). Trend-day filtering (7.20),
 focal-loss sign retraining (7.21) and SKEW sentiment (7.22) are all closed
-as nulls.
+as nulls. NOTE on 7.20: the trend/oscillation test is an ADAPTATION of the
+Azizi (JRFM 2026) framing, not a reproduction — it labels trend days on the
+CLOSE-TO-CLOSE return |r_{t+1}| (the session's intraday high-low range is
+available in the daily frame's high/low columns, so the paper's threshold
+variable IS constructible — the close-to-close label was an implementation
+choice, not a data limitation) and uses an L2 logistic on the sign model's
+own 16 features (the paper's RF/NN + ATR/macro-announcement classifiers are
+not implemented). The null is therefore scoped: a return-based,
+same-features logistic proxy for that paper's trend/oscillation framing did
+not transfer to the C+ sign model — the paper's actual method (intraday-range
+label, RF/NN + ATR/announcement features) is untested here.
 
 ### Model C+ — TACR magnitude x linear sign + macro (THE result)
 
