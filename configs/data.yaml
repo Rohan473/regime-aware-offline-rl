@@ -49,6 +49,12 @@ dataset:
   # (first ~300 trading days on default regime config) are dropped from the
   # offline dataset — never silently filled with 0 or synthetic values.
   # The drop rule is: any NaN in a state feature or the regime column.
+  # Transaction cost on the offline-dataset reward, charged on TURNOVER:
+  #   r_t = a_t * ret[t+1] - (bps/1e4) * |a_t - a_{t-1}|
+  # (entry from flat on each trajectory's first day; buy-and-hold pays once,
+  # frequent rebalancers pay per flip). NOT a per-day holding tax on |a_t| —
+  # see src/data/behavior_policies.py. Shared knob used by every model that
+  # consumes the dataset reward (TACR, D, C+); DDR mirrors it in ddr.yaml.
   transaction_cost_bps: 0.0
 
 behavior_policies:

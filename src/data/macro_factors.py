@@ -65,6 +65,28 @@ def load_macro(macro_dir: Path = MACRO_DIR) -> dict[str, pd.DataFrame]:
     return out
 
 
+def _rolling_corr_on_overlap(
+    x: pd.Series, y: pd.Series, window: int = 20, min_periods: int = 20
+) -> pd.Series:
+    """Trailing rolling correlation of ``x`` and ``y`` computed only on dates
+    where BOTH are finite, aligned per-date, then re-indexed back to ``x``'s
+    original calendar.
+
+    Fixes a calendar-misalignment artifact (PROJECT_NOTES 7.31): SPY and DXY
+    trade on slightly different days, so ``x.rolling(window).corr(y)`` over the
+    SPY calendar goes NaN for ~window rows around any single missing ``y`` day.
+    Here we first drop rows where either series is missing (the moving window
+    is then well-defined on the shared calendar), compute the rolling
+    correlation on that clean series, then forward-fill the result back onto
+    the full calendar from the most recent valid value — strictly causal (a
+    value at t uses only returns up to t).
+    """
+    pair = pd.concat([x.rename("x"), y.rename("y")], axis=1).dropna()
+    corr = pair["x"].rolling(window, min_periods=min_periods).corr(pair["y"])
+    out = corr.reindex(x.index)
+    return out.ffill()
+
+
 def macro_features(spy_daily: pd.DataFrame, macro_dir: Path = MACRO_DIR) -> pd.DataFrame:
     """Raw macro feature columns indexed by the SPY daily calendar.
 
@@ -74,7 +96,7 @@ def macro_features(spy_daily: pd.DataFrame, macro_dir: Path = MACRO_DIR) -> pd.D
     """
     macro = load_macro(macro_dir)
     idx = pd.DatetimeIndex(spy_daily.index).tz_localize(None)  # naive SPY dates
-    spy_ret = pd.Series(spy_daily["close"].astype(float).pct_change(), index=idx)
+    spy_ret = pd.Series(spy_daily["close"].astype(float).to_numpy(), index=idx).pct_change()
 
     tlt_ret = _adj_returns(macro["tlt"]).reindex(idx)
     hyg_ret = _adj_returns(macro["hyg"]).reindex(idx)
@@ -91,7 +113,7 @@ def macro_features(spy_daily: pd.DataFrame, macro_dir: Path = MACRO_DIR) -> pd.D
     out["tnx_delta_1d"] = tnx.diff()
     out["tnx_delta_5d"] = tnx.diff(5)
     out["vol_term"] = vix3m - vix
-    out["dxy_corr_20d"] = spy_ret.rolling(20, min_periods=20).corr(dxy_ret)
+    out["dxy_corr_20d"] = _rolling_corr_on_overlap(spy_ret, dxy_ret, window=20)
     out["credit_1d"] = hyg_ret - tlt_ret
     out["rs_qqq_1d"] = spy_ret - qqq_ret
     out["rs_iwm_1d"] = spy_ret - iwm_ret

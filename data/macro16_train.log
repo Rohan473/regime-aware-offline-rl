@@ -1,0 +1,61 @@
+$ python -m src.models.tacr.train --use-double-q --double-q-mode min --no-balanced-families --state-macro --tag macro16 --seed 20260814
+$ python -m src.models.tacr.train --use-double-q --double-q-mode min --no-balanced-families --state-macro --tag macro16 --seed 1
+epoch 01: actor 1.1159 critic 0.0061 Q -0.0330 val Sharpe +0.588 (mean|a| 0.232)
+epoch 01: actor 0.4710 critic 0.0072 Q -0.0029 val Sharpe -2.194 (mean|a| 0.353)
+epoch 02: actor 1.0695 critic 0.0025 Q -0.0458 val Sharpe +0.750 (mean|a| 0.643)
+epoch 02: actor 0.8578 critic 0.0033 Q -0.0268 val Sharpe +0.380 (mean|a| 0.625)
+epoch 03: actor 1.0325 critic 0.0020 Q -0.0600 val Sharpe +0.441 (mean|a| 0.508)
+epoch 03: actor 0.9997 critic 0.0021 Q -0.0456 val Sharpe +0.626 (mean|a| 0.585)
+epoch 04: actor 1.0041 critic 0.0019 Q -0.0748 val Sharpe -1.088 (mean|a| 0.754)
+epoch 04: actor 1.0057 critic 0.0016 Q -0.0625 val Sharpe +0.846 (mean|a| 0.844)
+epoch 05: actor 0.9924 critic 0.0017 Q -0.0889 val Sharpe -0.870 (mean|a| 0.354)
+epoch 05: actor 0.9966 critic 0.0014 Q -0.0778 val Sharpe -1.284 (mean|a| 0.659)
+epoch 06: actor 0.9850 critic 0.0016 Q -0.1014 val Sharpe -0.145 (mean|a| 0.645)
+epoch 06: actor 0.9869 critic 0.0012 Q -0.0916 val Sharpe -0.449 (mean|a| 0.133)
+epoch 07: actor 0.9811 critic 0.0015 Q -0.1134 val Sharpe +1.096 (mean|a| 0.694)
+epoch 07: actor 0.9838 critic 0.0011 Q -0.1037 val Sharpe +0.802 (mean|a| 0.693)
+epoch 08: actor 0.9781 critic 0.0014 Q -0.1252 val Sharpe -0.353 (mean|a| 0.234)
+epoch 08: actor 0.9798 critic 0.0010 Q -0.1149 val Sharpe -0.245 (mean|a| 0.251)
+epoch 09: actor 0.9757 critic 0.0013 Q -0.1348 val Sharpe +0.385 (mean|a| 0.551)
+epoch 09: actor 0.9751 critic 0.0010 Q -0.1253 val Sharpe +0.748 (mean|a| 0.550)
+epoch 10: actor 0.9721 critic 0.0012 Q -0.1454 val Sharpe -0.723 (mean|a| 0.292)
+epoch 10: actor 0.9720 critic 0.0009 Q -0.1345 val Sharpe +1.223 (mean|a| 0.816)
+[seed 1] best val Sharpe 1.0962 @ epoch 7 -> E:\New folder\RL_trading\src\models\tacr\checkpoints\tacr\macro16\s1\tacr_best.pt
+[seed 20260814] best val Sharpe 1.2230 @ epoch 10 -> E:\New folder\RL_trading\src\models\tacr\checkpoints\tacr\macro16\s20260814\tacr_best.pt
+$ python -m src.models.tacr.train --use-double-q --double-q-mode min --no-balanced-families --state-macro --tag macro16 --seed 2
+$ python -m src.models.tacr.train --use-double-q --double-q-mode min --no-balanced-families --state-macro --tag macro16 --seed 3
+epoch 01: actor 1.2591 critic 0.0072 Q -0.1150 val Sharpe -0.304 (mean|a| 0.175)
+epoch 01: actor 1.2247 critic 0.0041 Q -0.0693 val Sharpe +0.255 (mean|a| 0.269)
+epoch 02: actor 1.0954 critic 0.0040 Q -0.1410 val Sharpe +0.853 (mean|a| 0.625)
+epoch 02: actor 1.0643 critic 0.0026 Q -0.0849 val Sharpe +0.517 (mean|a| 0.335)
+epoch 03: actor 1.0312 critic 0.0031 Q -0.1583 val Sharpe +1.626 (mean|a| 0.667)
+epoch 03: actor 1.0211 critic 0.0020 Q -0.0969 val Sharpe +1.273 (mean|a| 0.677)
+epoch 04: actor 1.0014 critic 0.0016 Q -0.1091 val Sharpe -0.965 (mean|a| 0.610)
+epoch 04: actor 1.0007 critic 0.0026 Q -0.1725 val Sharpe -0.740 (mean|a| 0.355)
+epoch 05: actor 0.9911 critic 0.0014 Q -0.1195 val Sharpe +0.661 (mean|a| 0.510)
+epoch 05: actor 0.9903 critic 0.0023 Q -0.1844 val Sharpe -0.995 (mean|a| 0.402)
+epoch 06: actor 0.9878 critic 0.0012 Q -0.1297 val Sharpe +0.401 (mean|a| 0.424)
+epoch 06: actor 0.9848 critic 0.0021 Q -0.1957 val Sharpe -0.700 (mean|a| 0.443)
+epoch 07: actor 0.9814 critic 0.0011 Q -0.1389 val Sharpe -0.016 (mean|a| 0.556)
+epoch 07: actor 0.9799 critic 0.0020 Q -0.2062 val Sharpe -0.236 (mean|a| 0.194)
+epoch 08: actor 0.9775 critic 0.0010 Q -0.1474 val Sharpe -0.188 (mean|a| 0.690)
+epoch 08: actor 0.9770 critic 0.0019 Q -0.2159 val Sharpe +0.103 (mean|a| 0.347)
+epoch 09: actor 0.9743 critic 0.0018 Q -0.2253 val Sharpe +0.304 (mean|a| 0.496)
+epoch 09: actor 0.9746 critic 0.0010 Q -0.1551 val Sharpe +0.708 (mean|a| 0.558)
+epoch 10: actor 0.9703 critic 0.0016 Q -0.2328 val Sharpe +1.136 (mean|a| 0.809)
+[seed 2] best val Sharpe 1.6257 @ epoch 3 -> E:\New folder\RL_trading\src\models\tacr\checkpoints\tacr\macro16\s2\tacr_best.pt
+epoch 10: actor 0.9718 critic 0.0009 Q -0.1631 val Sharpe +1.014 (mean|a| 0.714)
+[seed 3] best val Sharpe 1.2730 @ epoch 3 -> E:\New folder\RL_trading\src\models\tacr\checkpoints\tacr\macro16\s3\tacr_best.pt
+$ python -m src.models.tacr.train --use-double-q --double-q-mode min --no-balanced-families --state-macro --tag macro16 --seed 4
+epoch 01: actor 1.2756 critic 0.0038 Q -0.0914 val Sharpe +0.439 (mean|a| 0.177)
+epoch 02: actor 1.0732 critic 0.0020 Q -0.1113 val Sharpe +0.938 (mean|a| 0.781)
+epoch 03: actor 1.0287 critic 0.0015 Q -0.1263 val Sharpe +0.714 (mean|a| 0.669)
+epoch 04: actor 1.0013 critic 0.0013 Q -0.1402 val Sharpe -0.967 (mean|a| 0.675)
+epoch 05: actor 0.9899 critic 0.0012 Q -0.1528 val Sharpe -0.150 (mean|a| 0.429)
+epoch 06: actor 0.9835 critic 0.0010 Q -0.1641 val Sharpe -0.758 (mean|a| 0.474)
+epoch 07: actor 0.9807 critic 0.0010 Q -0.1747 val Sharpe -0.700 (mean|a| 0.612)
+epoch 08: actor 0.9776 critic 0.0009 Q -0.1841 val Sharpe -0.584 (mean|a| 0.488)
+epoch 09: actor 0.9734 critic 0.0008 Q -0.1932 val Sharpe +0.893 (mean|a| 0.623)
+epoch 10: actor 0.9710 critic 0.0008 Q -0.2015 val Sharpe +0.329 (mean|a| 0.570)
+[seed 4] best val Sharpe 0.9380 @ epoch 2 -> E:\New folder\RL_trading\src\models\tacr\checkpoints\tacr\macro16\s4\tacr_best.pt
+=== suite complete: macro16 ===

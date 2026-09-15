@@ -90,6 +90,17 @@ class TACRConfig:
     checkpoint_dir: Path = field(default_factory=lambda: Path(__file__).parent / "checkpoints")
     device: str = "cpu"
 
+    # --- state widening (Exp 1, PROJECT_NOTES 7.30.1; default OFF) ---
+    # When True, the TACR STATE becomes 16-dim = [8 SPY z] + [8 macro causal z]
+    # (PROJECT_NOTES 7.18/7.30.1). Dates are restricted AT LOAD TIME to rows
+    # where every macro feature is finite (2007-05+, HYG inception), mirroring
+    # the C+ sign model's matched dates. Val/test fall entirely inside 2007+,
+    # so only the TRAIN window loses its pre-2007 prefix. All other
+    # hyperparameters are IDENTICAL to the canonical 8-dim run. Checkpoints
+    # write to checkpoints/tacr/macro16/s{seed}/ so the canonical pack is
+    # untouched (the pre-registered Exp 1 constraint).
+    state_macro: bool = False
+
     @classmethod
     def from_yaml(cls, path: Path | str = CONFIG_YAML) -> "TACRConfig":
         """Build from configs/tacr.yaml (unknown keys ignored)."""

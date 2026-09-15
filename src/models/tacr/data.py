@@ -84,6 +84,8 @@ def load_tacr_data(
     processed_dir: Path | None = None,
     policies: tuple[str, ...] | None = None,
     exclude_policies: tuple[str, ...] = (),
+    test_end: str | None = None,
+    state_macro: bool = False,
 ) -> TACRData:
     """Build the behavior-policy trajectories from Phase-1 artifacts.
 
@@ -92,6 +94,9 @@ def load_tacr_data(
     ``policies`` defaults to ALL policy tags present in the offline dataset
     (the window-expanded behavior families), minus ``exclude_policies``
     (e.g. ``("random",)`` to drop the uniform demonstrator).
+    ``test_end`` overrides the study-horizon clip (the default
+    ``SPLIT_TEST_END``) — used by the 7.26 out-of-sample confirmation run to
+    load the untouched 2025-2026 window for a frozen-artifact roll.
     """
     from src.models.tacr.config import TACRConfig
 
@@ -118,7 +123,39 @@ def load_tacr_data(
     dates = pd.DatetimeIndex(common)
     if len(dates) == 0:
         raise ValueError("no dates found for the behavior policies")
-    states_np = features.reindex(dates)[Z_COLUMNS].to_numpy(dtype="float64")
+
+    states_base = features.reindex(dates)[Z_COLUMNS].to_numpy(dtype="float64")
+
+    # Exp 1 (PROJECT_NOTES 7.30.1): optional 16-dim state. Prepend the macro
+    # z-features and restrict dates AT LOAD TIME to rows where every macro
+    # feature is finite (2007-05+). The SPY z-columns stay first so the first
+    # 8 state dims are bit-identical to the canonical 8-dim run — only 8 new
+    # (macro) dims are appended, keeping the expansion purely additive.
+    if state_macro:
+        from src.data.loaders import REPO_ROOT as _ROOT  # noqa: F811
+        from src.data.macro_factors import MACRO_FEATURES, macro_features, zscore_causal  # noqa: F401
+
+        feats_full = pd.read_parquet(_ROOT / "data" / "processed" / "features_regimes.parquet")
+        naive = dates.tz_localize(None)
+        macro_raw = macro_features(feats_full)
+        macro_z = np.column_stack(
+            [zscore_causal(macro_raw[c]) for c in MACRO_FEATURES]
+        )
+        macro_z = macro_z[np.searchsorted(macro_raw.index, naive)]      # (T, 8)
+        base_ok = np.isfinite(states_base).all(1)
+        mac_ok = np.isfinite(macro_z).all(1)
+        keep = base_ok & mac_ok
+        if not keep.all():
+            dropped = int((~keep).sum())
+            print(f"[load_tacr_data] state_macro=True: dropping {dropped} dates "
+                  f"without finite macro features (pre-2007-05 + gaps)",
+                  file=sys.stderr)
+        dates = dates[keep]
+        states_np = np.concatenate(
+            [states_base[keep], macro_z[keep].astype(np.float64, copy=False)], axis=1
+        )
+    else:
+        states_np = states_base
 
     per_policy = {}
     for pol in policies:
@@ -138,10 +175,11 @@ def load_tacr_data(
     market_ret = features["close"].pct_change().shift(-1)
     market_returns = market_ret.loc[dates].to_numpy(dtype="float64")
 
-    keep = dates.tz_localize(None) <= pd.Timestamp(SPLIT_TEST_END)
+    keep = dates.tz_localize(None) <= pd.Timestamp(test_end or SPLIT_TEST_END)
     if not keep.all():
+        clip_end = test_end or SPLIT_TEST_END
         print(
-            f"[load_tacr_data] clipping {int((~keep).sum())} dates beyond {SPLIT_TEST_END}",
+            f"[load_tacr_data] clipping {int((~keep).sum())} dates beyond {clip_end}",
             file=sys.stderr,
         )
         dates = dates[keep]

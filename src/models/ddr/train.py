@@ -60,9 +60,22 @@ BEST_NAME = "ddr_best.pt"
 
 
 def _strategy_returns(
-    actions: torch.Tensor, next_returns: torch.Tensor, cost_bps: float
+    actions: torch.Tensor,
+    next_returns: torch.Tensor,
+    cost_bps: float,
+    prev_action: torch.Tensor | float = 0.0,
 ) -> torch.Tensor:
-    return actions * next_returns - (cost_bps / 1e4) * actions.abs()
+    """Net-of-cost strategy returns on TURNOVER, not absolute position:
+    r_t = a_t * R_{t+1} - (bps/1e4) * |a_t - a_{t-1}|.
+
+    ``prev_action`` is the previous time step's action (the last action of
+    the prior block under truncated BPTT, passed detached); entry from flat
+    (0.0) is the default, so the first day pays its entry cost. Cost is
+    charged only when the position changes — the old ``cost * |a_t|``
+    formula was a holding tax that penalized buy-and-hold forever."""
+    prev = torch.as_tensor(prev_action, dtype=actions.dtype, device=actions.device)
+    cost_t = (cost_bps / 1e4) * torch.abs(actions - prev)
+    return actions * next_returns - cost_t
 
 
 def _valid(split: DDRData) -> torch.Tensor:
@@ -128,6 +141,7 @@ def train_ddr(
         )
         losses = []
         block = cfg.window_size
+        prev_a = torch.zeros(1, dtype=train_returns.dtype)
         for i in range(0, len(train_windows), block):
             x = train_windows[i : i + block]
             actions = model(x).squeeze(-1)
@@ -137,8 +151,12 @@ def train_ddr(
                 _, returns = vt(actions, train_returns[i : i + block])
             else:
                 returns = _strategy_returns(
-                    actions, train_returns[i : i + block], cfg.transaction_cost_bps
+                    actions,
+                    train_returns[i : i + block],
+                    cfg.transaction_cost_bps,
+                    prev_action=prev_a,
                 )
+            prev_a = actions[-1:].detach()
             D = state.update(returns)
             valid = torch.isfinite(D)
             if not valid.any():

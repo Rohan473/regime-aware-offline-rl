@@ -1,0 +1,7 @@
+repr_a,repr_b,cka
+objlab predictive (128d),objlab dsr (128d),0.8614811301231384
+objlab predictive (128d),objlab actorcritic (128d),0.9313079118728638
+objlab predictive (128d),objlab masked (128d),0.9517515897750854
+objlab dsr (128d),objlab actorcritic (128d),0.7914932370185852
+objlab dsr (128d),objlab masked (128d),0.8563014268875122
+objlab actorcritic (128d),objlab masked (128d),0.8848329782485962

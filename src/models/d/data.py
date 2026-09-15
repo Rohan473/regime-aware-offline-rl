@@ -235,7 +235,10 @@ def split_d_data(
 
 
 def sample_transitions(
-    split: DData, batch_size: int, rng: np.random.Generator
+    split: DData,
+    batch_size: int,
+    rng: np.random.Generator,
+    policy_weights: np.ndarray | tuple | None = None,
 ) -> dict[str, np.ndarray]:
     """Sample (policy, day t) transitions from a split.
 
@@ -243,6 +246,12 @@ def sample_transitions(
     (split.valid[t] and t+1 exists in the split), matching the data-hole
     exclusion of Models B/C. Returns global positions (into the full states
     matrix), policy indices, and the logged action/reward/done.
+
+    ``policy_weights`` (optional, length = n policies, sum ~ 1): the default
+    samples policies UNIFORMLY; a weight vector rescales the behavior mix at
+    sampling time (e.g. the 7.27.2 composition-matched run that holds total
+    volume fixed and re-weights the 32-policy pool back to the pre-7.11
+    per-family proportions — the volume-vs-composition discriminator).
     """
     t_len = len(split.dates)
     if t_len < 2:
@@ -251,7 +260,10 @@ def sample_transitions(
     if len(candidate) == 0:
         raise ValueError("split has no valid transitions to sample")
     t_idx = rng.choice(candidate, size=batch_size, replace=True)
-    pols = rng.integers(0, len(split.policies), size=batch_size)
+    if policy_weights is None:
+        pols = rng.integers(0, len(split.policies), size=batch_size)
+    else:
+        pols = rng.choice(len(split.policies), size=batch_size, p=np.asarray(policy_weights))
     return {
         "pos_t": split.global_pos[t_idx],
         "pos_next": split.global_pos[t_idx + 1],
@@ -271,7 +283,7 @@ def build_batch(
     into one 2B forward so next-state representations come from the same
     causal encoder with the same parameters.
     """
-    tr = sample_transitions(split, cfg.batch_size, rng)
+    tr = sample_transitions(split, cfg.batch_size, rng, policy_weights=cfg.policy_weights)
     st, tst = make_windows(data_full.states_in, tr["pos_t"], cfg.u)
     sn, tsn = make_windows(data_full.states_in, tr["pos_next"], cfg.u)
     return {

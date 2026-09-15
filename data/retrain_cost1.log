@@ -1,0 +1,20 @@
+[run ] C:\Users\91866\AppData\Local\Programs\Python\Python312\python.exe -m src.models.d.train --variant d --seed 20260814 --tag cost1
+[exit] 0 E:\New folder\RL_trading\src\models\d\checkpoints\cost1\d\s20260814\d_best.pt
+[run ] C:\Users\91866\AppData\Local\Programs\Python\Python312\python.exe -m src.models.d.train --variant d --seed 1 --tag cost1
+[exit] 0 E:\New folder\RL_trading\src\models\d\checkpoints\cost1\d\s1\d_best.pt
+[run ] C:\Users\91866\AppData\Local\Programs\Python\Python312\python.exe -m src.models.d.train --variant d --seed 2 --tag cost1
+[exit] 0 E:\New folder\RL_trading\src\models\d\checkpoints\cost1\d\s2\d_best.pt
+[run ] C:\Users\91866\AppData\Local\Programs\Python\Python312\python.exe -m src.models.d.train --variant d --seed 3 --tag cost1
+[exit] 0 E:\New folder\RL_trading\src\models\d\checkpoints\cost1\d\s3\d_best.pt
+[run ] C:\Users\91866\AppData\Local\Programs\Python\Python312\python.exe -m src.models.d.train --variant d --seed 4 --tag cost1
+[exit] 0 E:\New folder\RL_trading\src\models\d\checkpoints\cost1\d\s4\d_best.pt
+[run ] C:\Users\91866\AppData\Local\Programs\Python\Python312\python.exe -m src.models.d.train --variant d_minus_fuzzy --seed 20260814 --tag cost1
+[exit] 0 E:\New folder\RL_trading\src\models\d\checkpoints\cost1\d_minus_fuzzy\s20260814\d_best.pt
+[run ] C:\Users\91866\AppData\Local\Programs\Python\Python312\python.exe -m src.models.d.train --variant d_minus_fuzzy --seed 1 --tag cost1
+[exit] 0 E:\New folder\RL_trading\src\models\d\checkpoints\cost1\d_minus_fuzzy\s1\d_best.pt
+[run ] C:\Users\91866\AppData\Local\Programs\Python\Python312\python.exe -m src.models.d.train --variant d_minus_fuzzy --seed 2 --tag cost1
+[exit] 0 E:\New folder\RL_trading\src\models\d\checkpoints\cost1\d_minus_fuzzy\s2\d_best.pt
+[run ] C:\Users\91866\AppData\Local\Programs\Python\Python312\python.exe -m src.models.d.train --variant d_minus_fuzzy --seed 3 --tag cost1
+[exit] 0 E:\New folder\RL_trading\src\models\d\checkpoints\cost1\d_minus_fuzzy\s3\d_best.pt
+[run ] C:\Users\91866\AppData\Local\Programs\Python\Python312\python.exe -m src.models.d.train --variant d_minus_fuzzy --seed 4 --tag cost1
+[exit] 0 E:\New folder\RL_trading\src\models\d\checkpoints\cost1\d_minus_fuzzy\s4\d_best.pt

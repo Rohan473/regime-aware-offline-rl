@@ -32,6 +32,83 @@ test-window cum +0.26..+0.69, mean ~+0.49, vs B&H +0.59 at 100% exposure)
 the strategy minus Sharpe of its own long-only sizing control), which is
 scale-invariant and isolates directional skill from position sizing.
 
+## CSI300 / China cross-asset extension (2026-09-04)
+
+The pipeline and all four models were re-run end-to-end on the **CSI300
+index** (sh000300, Sina daily, 2005-2026) alongside the existing SPY work.
+Everything under `scripts/download_csi300.py`,
+`scripts/csi300_pipeline.py`, `scripts/fetch_macro_cn.py`,
+`scripts/hybrid_sign_macro_cn.py`, and `scripts/compile_csi300_comparison.py`.
+Same protocol: train <= 2018-12-31, val 2019-2020, test 2021-2024
+(`SPLIT_TEST_END` clip), 5-seed pack, per-model exposure-matched EM control.
+
+**CSI300 results (test 2021-2024, 5 seeds; `data/csi300_model_comparison.csv`):**
+
+| Model | Sharpe (model) | Sharpe (EM) | Margin | Wins vs EM |
+|-------|---------------|-------------|--------|-----------|
+| B (DDR naive) | +0.26 | −0.02 | +0.28 | 5/5 |
+| **B-vt (DDR vol-targeted)** | **+0.41** | +0.04 | **+0.37** | **5/5** |
+| C (TACR) | −0.58 | −0.59 | +0.001 | 1/5 |
+| **C+ (hybrid z-only)** | −0.36 | −0.59 | +0.22 | **5/5** |
+| C+ (hybrid z+macro) | −0.35 | −0.54 | +0.19 | 4/5 |
+| D (fuzzy+IQL) | −0.24 | +0.07 | −0.31 | 0/5 |
+| D-minus-fuzzy | −0.24 | +0.06 | −0.29 | 0/5 |
+
+Headline CSI300 findings:
+- **DDR (vol-targeted) is the best CSI300 model** (+0.41 Sharpe, beats its
+  EM control 5/5) — the same robustness it showed on SPY. Naive DDR is close
+  second (+0.26, 5/5).
+- **C+ hybrid sign adds value on CSI300** (margin +0.22, 5/5 z-only) but the
+  weak TACR magnitude keeps total Sharpe below zero.
+- **China macro features do NOT improve the C+ sign head on CSI300** (margin
+  +0.22 → +0.19, wins 5/5 → 4/5) — the SPY macro edge (7.18) does not
+  transfer to a China proxy set.
+- **D and TACR fail on CSI300** exactly as on SPY: D is worse than its own
+  EM control (−0.31 margin), TACR has zero directional signal (margin ~0).
+- **D fuzzy ablation is null again** (delta 0.0005, far below noise floor).
+
+China cross-asset macro set (6 features, best-effort — East Money is blocked
+in this environment and several US-style series have no clean China analog):
+`rs_500_1d` (vs CSI500), `rs_growth_1d` (vs ChiNext), `rs_ss50_1d` (vs SSE50),
+`qvix_chg_1d/5d`, `qvix_level` (50ETF implied-vol analog). Skipped (no
+reliable China source): 10y CGB yield, USDCNY, credit spread, options skew.
+Data in `data/macro_cn/` (fetched by `scripts/fetch_macro_cn.py`).
+
+**Transaction costs (2026-09-05, PROJECT_NOTES 7.29):** the reward formula was
+corrected from a per-day holding tax `cost*|a_t|` to a true turnover cost
+`cost*|a_t − a_{t-1}|`, applied identically in the offline dataset reward
+(TACR/D critics), DDR's training reward, and the vol-targeted DSR — the knob
+(`transaction_cost_bps`, configs/data.yaml and ddr.yaml) is shared but still
+0 bps by default. `scripts/cost_sweep.py` (→ `data/cost_sweep.csv`) re-prices
+the frozen CSI300 checkpoints net of cost on BOTH the model and its own EM
+control, over 0-10 bps plus a crisis-x5 cell. Result: the ranking is stable —
+**DDR vol-targeted wins at every cost level** (+0.37 margin @ 0bps → +0.23 @
+10bps, 4-5/5), Model B naive holds 5/5 at 10bps — but **C+'s sign margin
+halves by 1 bps and is gone by 5-10 bps**, exactly the fragile slice predicted
+(everyday sign-head turnover, not the 15 crisis days). Added 2026-09-05
+(PROJECT_NOTES 7.29.1): a continuous **vol-scaled sensitivity band**
+`cost_bps = base_bps * (1 + k * vol_z_t)` using the models' own causal
+`z_realized_vol_20d` state feature, base ∈ {0.5, 1, 2, 5} bps × k ∈ {0.5, 1.0,
+2.0} — framed as a robustness assumption, not a calibrated cost model. Result:
+the ranking is stable across every cell of the band (**DDR vol-targeted wins
+all 12 vol-scaled cells at 5/5**, B naive never worse than second), because at
+a fixed base bps the vol redistribution is not the dominant stress — base bps
+is. C+ z-only survives the band but only just at the steep end (+0.09 vs its
++0.22 at zero cost), showing again which slice cost erodes. Cost-aware
+retraining (the honest rerun) is DONE — 2026-09-05, PROJECT_NOTES 7.29.2:
+B/C/D all retrained (5 seeds × all variants, 1 bps inside the objective;
+`scripts/retrain_at_cost.py`, checkpoints under `*/checkpoints/*/cost1/`)
+and re-evaluated net-of-cost on the full flat + vol-scaled band
+(`data/cost_sweep_cost1.csv`, `data/csi300_model_comparison_cost1.csv`).
+**The ranking does NOT reorder: DDR vol-targeted still wins every cost cell**
+(+0.26 margin @ 0bps → +0.16 @ 10bps, 4-5/5), B naive runner-up 5/5. C+'s
+sign head survives 1-2 bps ({+0.218 @ 0 → +0.175 @ 1 → +0.003 @ 5}, and the
+vol-scaled band holds too) — but TACR itself retrained under cost collapses
+to a constant-|a| (test margin flat 0.000), so C+ is a decollated-sign
+curiosity, not a tradeable magnitude. D stays dead ({-0.30..-0.32}, 0/5).
+Bottom line: the selection is cost-robust; the fragile slice the reviewer
+flagged is the TACR magnitude head, exactly as predicted.
+
 ## Environment
 
 Python 3.12.5 (the only interpreter on this machine; project requires-python is
@@ -100,6 +177,9 @@ delta (1d/5d), vol term structure (VIX3M−VIX), 20d SPY−DXY correlation,
 credit proxy (HYG−TLT, price-based), and SPY−QQQ / SPY−IWM relative strength.
 These live ONLY in the C+ linear sign model — the four-model state stays 8-d
 (adding them to the TACR/B/D state is a deferred, protocol-breaking decision).
+The CSI300/China cross-asset variant (6 features) lives in
+`scripts/fetch_macro_cn.py` + `src/data/macro_factors_cn.py`; see the CSI300
+section above.
 
 ## Regimes: {bull, bear, crisis}
 
@@ -113,9 +193,10 @@ These live ONLY in the C+ linear sign model — the four-model state stays 8-d
   on entry the vol threshold is **frozen** (the *live* expanding-window
   percentile rises as crisis days accumulate — a long crisis like 2008 would
   otherwise self-extinguish against its own elevated bar); exit needs the same
-  streak below `exit_mult * frozen_threshold`. Then any label run shorter than
-  `min_regime_duration_days` is merged into its neighbor (shortest-first),
-  eliminating single-day flicker.
+  streak below `exit_mult * frozen_threshold`. Bull/bear must hold the same
+  tone for `min_regime_duration_days` consecutive days (forward pending
+  counter) before flipping; the whole labeler is strictly **causal** — the
+  label for a day depends only on data up to that day, never a future day.
 
 ## Behavior policies
 

@@ -20,9 +20,10 @@ Hysteresis (kills single-day flicker):
   days; on entry the threshold is FROZEN at its value when the entry streak
   started, and exit requires the same number of days below
   ``crisis_exit_mult * frozen_threshold`` (asymmetric band).
-* After the state machine runs, any run of labels shorter than
-  ``min_regime_duration_days`` is merged shortest-first into its longer
-  neighbor (ties -> previous), until every run is at least that long.
+* Bull/bear must hold the same tone for ``min_regime_duration_days``
+  consecutive days (forward pending counter) before the state flips. Crisis
+  passes through its own hysteresis unchanged. This is strictly CAUSAL: the
+  label for day t depends only on signal through day t, never on a later day.
 """
 
 from __future__ import annotations
@@ -61,28 +62,69 @@ def _raw_labels(trailing_ret: pd.Series, cfg: DictConfig) -> pd.Series:
     return labels
 
 
-def _blend_runs(labels: pd.Series, min_duration: int) -> pd.Series:
-    """Merge every run shorter than min_duration into its longer neighbor
-    (ties -> previous), iterating until all runs satisfy the minimum."""
-    labels = labels.copy()
-    while True:
-        runs = _runs_of(labels)
-        short_idx = [
-            i for i, (s, e, _) in enumerate(runs) if (e - s + 1) < min_duration
-        ]
-        if not short_idx:
+def _apply_causal_regime_lock(
+    bull_bear: pd.Series, crisis_flag: pd.Series, min_duration: int
+) -> pd.Series:
+    """Causal 3-state regime lock (single forward pass, no look-ahead).
+
+    Combines the (already causal) crisis hysteresis flag with a minimum-run
+    lock on the bull/bear axis. Crisis overrides bull/bear and passes through
+    unchanged (its entry/exit already enforce their own confirmation via
+    ``_apply_crisis_hysteresis``). Non-crisis days must hold the SAME tone for
+    ``min_duration`` consecutive days before the state flips to it; until then
+    the previous tone is retained.
+
+    This is strictly causal: the emitted label for day t depends only on
+    signal through day t (past pending counter + current raw tone), never on
+    a later day. It replaces the old post-hoc ``_blend_runs`` run merge, which
+    edited labels after the fact using future neighbors.
+
+    The first non-crisis day seeds the state directly (no history to confirm
+    against); crisis is emitted whenever the flag is on.
+    """
+    base = bull_bear.to_numpy()
+    crisis = crisis_flag.to_numpy()
+    n = len(base)
+    out = np.empty(n, dtype=object)
+
+    # Seed with the first non-crisis tone so the first day isn't NaN.
+    current: object
+    for i, b in enumerate(base):
+        if not crisis[i]:
+            current = b
             break
-        i = short_idx[0]
-        s, e, _ = runs[i]
-        len_prev = runs[i - 1][1] - runs[i - 1][0] + 1 if i > 0 else -1
-        len_next = runs[i + 1][1] - runs[i + 1][0] + 1 if i < len(runs) - 1 else -1
-        if len_prev >= len_next and i > 0:
-            labels.iloc[s : e + 1] = labels.iloc[runs[i - 1][1]]
-        elif i < len(runs) - 1:
-            labels.iloc[s : e + 1] = labels.iloc[runs[i + 1][0]]
+    else:
+        current = base[0]
+
+    pending = None
+    pending_count = 0
+    for t in range(n):
+        if crisis[t]:
+            out[t] = CRISIS
+            pending = None
+            pending_count = 0
+            current = CRISIS
+            continue
+        if current == CRISIS:
+            # Just exited crisis: resume the base tone immediately.
+            current = base[t]
+            pending = base[t]
+            pending_count = 0
+        if base[t] == current:
+            pending = None
+            pending_count = 0
         else:
-            labels.iloc[s : e + 1] = labels.iloc[runs[i - 1][1]]
-    return labels
+            if pending == base[t]:
+                pending_count += 1
+            else:
+                pending = base[t]
+                pending_count = 1
+            if pending_count >= min_duration:
+                current = pending
+                pending = None
+                pending_count = 0
+        out[t] = current
+    return pd.Series(out, index=bull_bear.index)
 
 
 def _runs_of(labels: pd.Series) -> list[tuple[int, int, object]]:
@@ -185,7 +227,13 @@ def label_regimes(close: pd.Series, cfg: DictConfig) -> pd.Series:
     labels = pd.Series(np.where(hysteresis, CRISIS, raw.to_numpy()), index=raw.index,
                        dtype="object")
 
-    # ---- hysteresis: minimum run duration --------------------------------
+    # ---- minimum run duration (causal forward lock) --------------------
+    # Crisis passes through its own hysteresis; bull/bear must hold
+    # min_regime_duration_days consecutive days before flipping.
     labeled_idx = labels.index[labels.notna()]
-    labels = _blend_runs(labels.loc[labeled_idx], int(r.hysteresis.min_regime_duration_days))
+    labels = _apply_causal_regime_lock(
+        labels.loc[labeled_idx],
+        hysteresis.loc[labeled_idx],
+        int(r.hysteresis.min_regime_duration_days),
+    )
     return labels.reindex(close.index)

@@ -35,7 +35,9 @@ regimes:
     # crisis entry: exit never uses the live (possibly elevated) threshold.
     crisis_confirmation_days: 2
     crisis_exit_mult: 0.8
-    # Any labeled run shorter than this is merged into its neighbor(s),
-    # eliminating single-day flicker. Runs are merged shortest-first until
-    # every run satisfies the minimum duration.
+    # Minimum duration for the bull/bear tone: the state flips only after the
+    # new tone has persisted this many consecutive days (forward pending
+    # counter), eliminating single-day flicker. Strictly causal -- no
+    # post-hoc run merging. Crisis passes through its own hysteresis
+    # unchanged.
     min_regime_duration_days: 5

@@ -5,7 +5,15 @@ position ``a_t in [position_min, position_max]``. Shorting is enabled by
 default ([-1, 1]): -1 = fully short, +1 = fully long, 0 = flat. Every policy
 is rolled over the SAME daily series and logs
 ``(state, action, reward, next_state, done)``; reward is
-``a_t * ret_{t+1}`` minus an optional linear transaction cost.
+``a_t * ret_{t+1}`` minus an optional linear transaction cost on TURNOVER:
+
+    r_t = a_t * ret[t+1] - (cost_bps/1e4) * |a_t - a_{t-1}|
+
+Cost is paid only when the position CHANGES (a_{t-1} = 0 on the first
+transition of a trajectory, i.e. entry from cash is charged once). Buy-and-
+hold pays cost once; short-window strategies that rebalance every day are
+penalized on every flip. This is a transaction cost, NOT a holding tax
+(the old ``cost * |a_t|`` formula charged every day at fixed exposure).
 
 Policy families:
   momentum        long when trailing return > 0, short when < 0, scaled by
@@ -194,7 +202,7 @@ def roll_policy(
         raise ValueError(f"unknown behavior policy: {policy_name!r}")
     actions = np.clip(actions, lo, hi)
 
-    reward = actions * ret_next - cost * np.abs(actions)
+    reward = actions * ret_next - cost * np.abs(actions - np.concatenate([[0.0], actions[:-1]]))
     done = np.zeros(n, dtype=bool)
     done[-1] = True
 

@@ -13,8 +13,8 @@ eta -> 0. The denominator is the running variance of the strategy returns.
 
 ``DSRState`` is a sequential, autograd-friendly EMA accumulator: D_t is
 differentiable w.r.t. r_t (and therefore w.r.t. the policy action a_t, since
-r_t = a_t * R_{t+1} - cost * |a_t|), which enables direct backprop training
-instead of a score-function gradient.
+r_t = a_t * R_{t+1} - cost * |a_t - a_{t-1}|), which enables direct backprop
+training instead of a score-function gradient.
 
 Numerical/definitional details:
 - The DSR is undefined while the running variance is non-positive or before
@@ -107,7 +107,7 @@ class VolTargetBuffer:
 
         scale_t = target_vol / realized_vol_t        (annualized)
         a'_t     = clip(a_t * scale_t, -max_leverage, +max_leverage)
-        r'_t     = a'_t * ret_{t+1} - cost * |a'_t|   (DSR input)
+        r'_t     = a'_t * ret_{t+1} - cost * |a'_t - a'_{t-1}|   (DSR input)
 
     ``realized_vol_t`` is the causal trailing standard deviation of the
     strategy-return series over ``window`` steps (detached: no gradient
@@ -135,6 +135,7 @@ class VolTargetBuffer:
         self.cost = float(cost_bps) / 1e4
         self._tail = torch.zeros(self.window - 1, dtype=dtype)
         self._tail_len = 0
+        self._prev_scaled = torch.zeros(1, dtype=dtype)
 
     def __call__(
         self, actions: torch.Tensor, next_returns: torch.Tensor
@@ -158,7 +159,14 @@ class VolTargetBuffer:
                 if bool(vol > 1e-6):
                     scale[j] = self.target_vol / vol
         scaled = torch.clamp(actions * scale, -self.max_leverage, self.max_leverage)
-        out = scaled * returns - self.cost * scaled.abs()
+        # transaction cost on TURNOVER of the DEPLOYED (scaled) action:
+        #   cost_t = (bps/1e4) * |a'_t - a'_{t-1}|
+        # paid only when the scaled position changes; the previous scaled
+        # action carries across calls (detached, consistent with truncated
+        # BPTT). The old cost * |a'_t| was a holding tax.
+        cost_t = self.cost * (scaled - self._prev_scaled).abs()
+        out = scaled * returns - cost_t
         self._tail = full[-(W - 1) :].detach()
         self._tail_len = min(self._tail_len + T, W - 1)
+        self._prev_scaled = scaled[-1:].detach()
         return scaled, out

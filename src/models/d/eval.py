@@ -87,7 +87,7 @@ def roll_test_preds(
             "ret": a * m,
         }
     )
-    preds["regime"] = test.regimes.to_numpy()
+    preds["regime"] = test.regimes[test.valid.numpy()].to_numpy()
     preds["valid"] = np.ones(len(preds), dtype=bool)
     return preds
 

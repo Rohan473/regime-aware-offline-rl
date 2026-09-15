@@ -1,0 +1,15 @@
+<frozen runpy>:128: RuntimeWarning: 'src.models.tacr.train' found in sys.modules after import of package 'src.models.tacr', but prior to execution of 'src.models.tacr.train'; this may result in unpredictable behaviour
+<frozen runpy>:128: RuntimeWarning: 'src.models.tacr.train' found in sys.modules after import of package 'src.models.tacr', but prior to execution of 'src.models.tacr.train'; this may result in unpredictable behaviour
+[load_tacr_data] state_macro=True: dropping 542 dates without finite macro features (pre-2007-05 + gaps)
+[load_tacr_data] state_macro=True: dropping 542 dates without finite macro features (pre-2007-05 + gaps)
+[load_tacr_data] clipping 329 dates beyond 2024-12-31
+[load_tacr_data] clipping 329 dates beyond 2024-12-31
+<frozen runpy>:128: RuntimeWarning: 'src.models.tacr.train' found in sys.modules after import of package 'src.models.tacr', but prior to execution of 'src.models.tacr.train'; this may result in unpredictable behaviour
+<frozen runpy>:128: RuntimeWarning: 'src.models.tacr.train' found in sys.modules after import of package 'src.models.tacr', but prior to execution of 'src.models.tacr.train'; this may result in unpredictable behaviour
+[load_tacr_data] state_macro=True: dropping 542 dates without finite macro features (pre-2007-05 + gaps)
+[load_tacr_data] state_macro=True: dropping 542 dates without finite macro features (pre-2007-05 + gaps)
+[load_tacr_data] clipping 329 dates beyond 2024-12-31
+[load_tacr_data] clipping 329 dates beyond 2024-12-31
+<frozen runpy>:128: RuntimeWarning: 'src.models.tacr.train' found in sys.modules after import of package 'src.models.tacr', but prior to execution of 'src.models.tacr.train'; this may result in unpredictable behaviour
+[load_tacr_data] state_macro=True: dropping 542 dates without finite macro features (pre-2007-05 + gaps)
+[load_tacr_data] clipping 329 dates beyond 2024-12-31

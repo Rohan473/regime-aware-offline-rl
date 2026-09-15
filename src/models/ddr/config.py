@@ -32,7 +32,7 @@ class DDRConfig:
     lr: float = 1e-3
     epochs: int = 30                 # best-val checkpoint selection; overfit sets in after ~epoch 8-11
     seed: int = 20260814
-    transaction_cost_bps: float = 0.0   # cost applied per trade: a*R - cost*|a|
+    transaction_cost_bps: float = 0.0   # turnover cost per trade: a*R - cost*|a_t - a_{t-1}|
     checkpoint_dir: Path = field(default_factory=lambda: Path(__file__).parent / "checkpoints")
     device: str = "cpu"
 

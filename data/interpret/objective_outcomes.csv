@@ -1,0 +1,5 @@
+arm,test_metric,label
+A_predictive,-0.010368993807762088,"test RMSE 104 bps, corr +0.057"
+B_dsr,0.9007929110727582,test Sharpe 0.901
+C_actorcritic,-0.7842636812334275,test Sharpe -0.784
+D_masked,-0.48801944580477985,recon RMSE 0.488 (z-units)

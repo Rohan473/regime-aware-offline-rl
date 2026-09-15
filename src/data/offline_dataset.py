@@ -8,7 +8,8 @@ Pipeline stages (each cached under data/processed/):
 
 State = z-scored features at t (8 dims); next_state = same at t+1.
 Action = scalar position in [position_min, position_max].
-Reward = a_t * ret_{t+1} - cost * |a_t|.
+Reward = a_t * ret_{t+1} - cost * |a_t - a_{t-1}| (turnover cost; entry
+from flat on each trajectory's first day).
 Regime (of t) is carried as a column for later regime-conditional evaluation.
 """
 

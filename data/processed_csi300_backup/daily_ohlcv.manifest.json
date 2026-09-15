@@ -1,0 +1,124 @@
+{
+  "files": [
+    {
+      "name": "SPY_2005.parquet",
+      "size": 2565916,
+      "mtime": 1786688465848275900
+    },
+    {
+      "name": "SPY_2006.parquet",
+      "size": 2341127,
+      "mtime": 1786689041702541600
+    },
+    {
+      "name": "SPY_2007.parquet",
+      "size": 3602090,
+      "mtime": 1786691138021418400
+    },
+    {
+      "name": "SPY_2008.parquet",
+      "size": 4641339,
+      "mtime": 1786691234627951800
+    },
+    {
+      "name": "SPY_2009.parquet",
+      "size": 4772724,
+      "mtime": 1786691268088741700
+    },
+    {
+      "name": "SPY_2010.parquet",
+      "size": 3690701,
+      "mtime": 1786690818168351100
+    },
+    {
+      "name": "SPY_2011.parquet",
+      "size": 3886102,
+      "mtime": 1786713098522330300
+    },
+    {
+      "name": "SPY_2012.parquet",
+      "size": 3650410,
+      "mtime": 1786692305135340500
+    },
+    {
+      "name": "SPY_2013.parquet",
+      "size": 3765412,
+      "mtime": 1786692676243675000
+    },
+    {
+      "name": "SPY_2014.parquet",
+      "size": 3732978,
+      "mtime": 1786692965492809500
+    },
+    {
+      "name": "SPY_2015.parquet",
+      "size": 3846229,
+      "mtime": 1786693595427512700
+    },
+    {
+      "name": "SPY_2016.parquet",
+      "size": 3935776,
+      "mtime": 1786694732483371300
+    },
+    {
+      "name": "SPY_2017.parquet",
+      "size": 3527698,
+      "mtime": 1786695371141859600
+    },
+    {
+      "name": "SPY_2018.parquet",
+      "size": 3976904,
+      "mtime": 1786713599545733500
+    },
+    {
+      "name": "SPY_2019.parquet",
+      "size": 3998116,
+      "mtime": 1786697495900354900
+    },
+    {
+      "name": "SPY_2020.parquet",
+      "size": 5797100,
+      "mtime": 1786697782740984600
+    },
+    {
+      "name": "SPY_2021.parquet",
+      "size": 4244745,
+      "mtime": 1786713927867839900
+    },
+    {
+      "name": "SPY_2022.parquet",
+      "size": 4476018,
+      "mtime": 1786714150445395400
+    },
+    {
+      "name": "SPY_2023.parquet",
+      "size": 4185253,
+      "mtime": 1786714180959777100
+    },
+    {
+      "name": "SPY_2024.parquet",
+      "size": 4109749,
+      "mtime": 1786716972704319600
+    },
+    {
+      "name": "SPY_2025.parquet",
+      "size": 4526758,
+      "mtime": 1786715558446998900
+    },
+    {
+      "name": "SPY_2026.parquet",
+      "size": 1595198,
+      "mtime": 1786711753987457100
+    }
+  ],
+  "resample": {
+    "timezone": "America/New_York",
+    "open": "first",
+    "high": "max",
+    "low": "min",
+    "close": "last",
+    "volume": "sum"
+  },
+  "cleaning": 2,
+  "digest": "cb83aedc46d2a32c665851db16c4c5d18417ecab2441fa262d8fd1756f2e1d62"
+}

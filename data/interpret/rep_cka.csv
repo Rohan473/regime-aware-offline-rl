@@ -1,0 +1,7 @@
+repr_a,repr_b,cka
+raw window (160d),replab auto (128d),0.9459125399589539
+raw window (160d),replab predictive (128d),0.6892858147621155
+raw window (160d),replab contrastive (128d),0.8616812229156494
+replab auto (128d),replab predictive (128d),0.7820515036582947
+replab auto (128d),replab contrastive (128d),0.9333933591842651
+replab predictive (128d),replab contrastive (128d),0.7552415132522583

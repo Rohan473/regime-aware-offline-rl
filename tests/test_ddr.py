@@ -162,15 +162,22 @@ def test_zstate_matches_offline_dataset():
 
 def test_next_returns_match_buy_and_hold_reward():
     """The realized next-day returns used by DDR equal the Phase-1
-    buy-and-hold reward (a=1.0, cost 0) — alignment of the market path."""
+    buy-and-hold reward (a=1.0) modulo its turnover cost — alignment of the
+    market path. With a_{-1}=0 the entry transition carries cost_bps/1e4 on
+    the first day only; at 0 bps this collapses to exact equality."""
     _require_artifacts()
+    import json
+    manifest = json.loads((_processed_dir() / "dataset_manifest.json").read_text())
+    cost_bps = float(manifest["config"]["dataset"]["transaction_cost_bps"])
     data = load_ddr_data(WINDOW_DAYS)
     dataset = pd.read_parquet(_processed_dir() / "offline_dataset.parquet")
     bh = dataset[dataset["policy"] == "buy_and_hold"].set_index("date")["reward"]
     ours = pd.Series(data.next_returns.numpy(), index=data.dates)
     shared = ours.index.intersection(bh.index)
+    expected = ours.loc[shared].astype("float32")
+    expected.iloc[0] = expected.iloc[0] - np.float32(cost_bps) / 1e4
     pd.testing.assert_series_equal(
-        ours.loc[shared].astype("float32").rename("reward"),
+        expected.rename("reward"),
         bh.loc[shared],
         rtol=1e-6,
         atol=1e-9,

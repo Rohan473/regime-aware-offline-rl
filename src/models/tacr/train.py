@@ -87,7 +87,11 @@ def train_tacr(
     rng = np.random.default_rng(cfg.seed)
 
     if data is None:
-        data = load_tacr_data(cfg.u, exclude_policies=cfg.exclude_policies)
+        data = load_tacr_data(
+            cfg.u,
+            exclude_policies=cfg.exclude_policies,
+            state_macro=cfg.state_macro,
+        )
     splits = split_tacr_data(data)
     train, val = splits["train"], splits["val"]
 
@@ -361,6 +365,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--par-phi", type=float, default=None)
     parser.add_argument("--par-cos-thresh", type=float, default=None)
     parser.add_argument("--par-bc-coeff", type=float, default=None)
+    parser.add_argument("--state-macro", action="store_true",
+                        help="Exp 1 (7.30.1): widen TACR state to 16-dim (8 SPY + "
+                             "8 macro causal z), dates restricted to 2007+")
     parser.add_argument("--tag", type=str, default=None,
                         help="append a subdir to checkpoint_dir (diagnostic runs)")
     args = parser.parse_args(argv)
@@ -410,6 +417,8 @@ def main(argv: list[str] | None = None) -> None:
         cfg.par_cos_thresh = args.par_cos_thresh
     if args.par_bc_coeff is not None:
         cfg.par_bc_coeff = args.par_bc_coeff
+    if args.state_macro:
+        cfg.state_macro = True
 
     if args.tag is not None:
         cfg.checkpoint_dir = cfg.checkpoint_dir / args.tag

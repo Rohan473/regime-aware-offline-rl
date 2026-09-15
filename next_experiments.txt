@@ -1,0 +1,1292 @@
+Yes. Given the current state of the project, I would **shift the paper away from “RL decomposes trading decisions” as the main claim** and toward a more interesting question:
+
+> **What does an RL trading model actually learn from a small financial state, and when does adding information change the representation rather than simply improve prediction?**
+
+Your existing results are actually a very good foundation for this.
+
+You already have several unusually useful facts:
+
+* The canonical state is only **8 technical features**.
+* You have already tested **8 → 16 dimensions** for TACR, where the extra 8 are macro/cross-asset features.
+* The 16-D TACR result did **not** recover the missing directional edge: margin −0.058 → −0.050.
+* C+ demonstrates that a simple supervised model can extract directional information that the end-to-end RL actor does not.
+* DDR works relatively well despite having a small recurrent state.
+* TACR fails despite having substantially more representational capacity.
+* The fuzzy uncertainty mechanism is repeatedly null.
+* The CSI300 extension shows that some mechanisms are market-specific.
+* Transaction-cost analysis shows that some apparent edges are economically fragile.
+
+That gives you a much stronger research direction than simply trying another RL architecture.
+
+---
+
+# 1. First: make the RL project interpretable
+
+I would build an **“RL representation laboratory”** around your existing project.
+
+Instead of asking only:
+
+> What is the Sharpe?
+
+ask:
+
+> **What information is present in the hidden representation, what information is discarded, and what information is actually used to make the action?**
+
+There are roughly five levels you can investigate.
+
+---
+
+## 2. Feature → representation → action decomposition
+
+For every model, save:
+
+$$
+x_t \rightarrow h_t \rightarrow a_t
+$$
+
+where:
+
+* \(x_t\) = input features
+* \(h_t\) = hidden representation
+* \(a_t\) = action
+
+For DDR:
+
+```text
+8 features
+   ↓
+GRU
+   ↓
+hidden state h_t
+   ↓
+policy head
+   ↓
+position a_t
+```
+
+For TACR:
+
+```text
+20 × 8 feature sequence
+        ↓
+Transformer
+        ↓
+embedding h_t
+        ↓
+actor / critic
+        ↓
+position
+```
+
+Then you can investigate **what is encoded in \(h_t\)**.
+
+This is much more interesting than simply looking at feature importance.
+
+---
+
+# 3. Linear probing is probably your highest-value experiment
+
+Take frozen representations from the trained model.
+
+For every timestep, extract:
+
+$$
+h_t
+$$
+
+Then train very simple models on \(h_t\).
+
+For example:
+
+### Probe A — future direction
+
+Predict:
+
+$$
+Y^{dir}_{t+k} = \mathbb{1}[R_{t+k}>0]
+$$
+
+for:
+
+* \(k=1\)
+* \(k=5\)
+* \(k=20\)
+
+If a linear probe can predict future direction from the hidden state, then the representation contains directional information.
+
+---
+
+### Probe B — future volatility
+
+Predict:
+
+$$
+\sigma_{t+5},\quad \sigma_{t+20}
+$$
+
+This asks whether the RL representation has learned volatility/regime information.
+
+---
+
+### Probe C — future absolute return
+
+Predict:
+
+$$
+|R_{t+1}|
+$$
+
+This is especially interesting given your current result:
+
+> confidence has almost no correlation with future absolute return.
+
+You can test whether the **hidden state** contains information about magnitude even though the final policy does not use it.
+
+---
+
+### Probe D — regime
+
+Predict:
+
+```text
+bull
+bear
+crisis
+```
+
+from \(h_t\).
+
+If the model learns regimes, you should see high classification accuracy even if the final trading performance is mediocre.
+
+---
+
+### Probe E — behavior-policy identity
+
+This one is particularly important for your offline RL setup.
+
+Predict:
+
+```text
+momentum_30
+momentum_40
+...
+mean_reversion_30
+...
+buy_and_hold
+random
+```
+
+from the hidden state.
+
+If this is highly predictable, the model may be learning:
+
+> "What kind of trajectory generated this observation?"
+
+rather than purely learning market structure.
+
+That connects directly to one of your existing concerns about behavior-policy contamination.
+
+---
+
+# 4. The most interesting experiment: representation vs raw features
+
+Don't just compare:
+
+```text
+raw features → prediction
+```
+
+with
+
+```text
+hidden representation → prediction
+```
+
+Compare:
+
+### Model 1
+
+Raw \(X\)
+
+### Model 2
+
+Hidden representation \(H\)
+
+### Model 3
+
+Raw \(X + H\)
+
+Then measure out-of-sample performance.
+
+You can get results like:
+
+| Information          | Direction | Volatility | Regime | Magnitude |
+| -------------------- | --------: | ---------: | -----: | --------: |
+| Raw 8 features       |       54% |        61% |    72% |      weak |
+| GRU representation   |       56% |        68% |    84% |      weak |
+| Raw + representation |       57% |        69% |    85% |      weak |
+
+That would tell a very different story from Sharpe.
+
+You would be able to say:
+
+> **The RL model transforms the input into a representation containing more regime information but not substantially more directional information.**
+
+That's a genuinely interpretable ML result.
+
+---
+
+# 5. Measure feature redundancy explicitly
+
+Your question about whether 8–16 fields are enough is excellent.
+
+But don't answer it by saying:
+
+> "8 features worked."
+
+Instead ask:
+
+> **How much unique information does each feature contribute?**
+
+There are several ways to do this.
+
+---
+
+## A. Correlation matrix
+
+Start simple.
+
+Calculate:
+
+$$
+Corr(X_i,X_j)
+$$
+
+for all features.
+
+But this is insufficient because nonlinear redundancy isn't captured.
+
+For example:
+
+```text
+ret_20d
+RSI
+MACD
+```
+
+may have relatively low pairwise correlations while encoding broadly similar momentum information.
+
+---
+
+# 6. Conditional redundancy is much more interesting
+
+For each feature \(X_i\), compare predictive performance:
+
+### All features
+
+$$
+Y \sim X_{1:8}
+$$
+
+versus
+
+### Remove feature i
+
+$$
+Y \sim X_{-i}
+$$
+
+Define:
+
+$$
+\Delta_i =
+Performance(X_{1:8}) -
+Performance(X_{-i})
+$$
+
+This gives you **unique predictive information**.
+
+For example:
+
+| Feature  | Full Sharpe | Without feature |     Δ |
+| -------- | ----------: | --------------: | ----: |
+| ret_1d   |        1.05 |            0.99 | +0.06 |
+| ret_5d   |        1.05 |            1.03 | +0.02 |
+| ret_20d  |        1.05 |            0.91 | +0.14 |
+| RSI      |        1.05 |            1.04 | +0.01 |
+| MACD     |        1.05 |            1.02 | +0.03 |
+| volume z |        1.05 |            1.05 |  0.00 |
+
+That immediately tells you whether 8 fields are actually 8 pieces of information.
+
+---
+
+# 7. Better: permutation importance
+
+Train the model normally.
+
+Then permute one feature while leaving everything else intact:
+
+$$
+X_i \rightarrow \pi(X_i)
+$$
+
+and measure:
+
+$$
+\Delta Performance_i
+$$
+
+Do this **out-of-sample**, not on the training data.
+
+For RL, you can measure:
+
+* action correlation
+* action MSE
+* Sharpe
+* exposure
+* turnover
+* regime-specific Sharpe
+
+The action-level metric is particularly useful:
+
+$$
+\Delta a_i =
+E[(a_t-a_t^{(-i)})^2]
+$$
+
+This tells you:
+
+> Which features actually cause the policy to change its decision?
+
+---
+
+# 8. An even better experiment: feature substitution
+
+This could become one of the strongest experiments in the project.
+
+Suppose your 8 features are:
+
+```text
+ret_1d
+ret_5d
+ret_20d
+vol
+RSI
+MACD
+volume_z
+bollinger_position
+```
+
+Construct feature groups:
+
+### Price momentum
+
+```text
+ret_1d
+ret_5d
+ret_20d
+```
+
+### Volatility
+
+```text
+realized_vol
+```
+
+### Technical oscillators
+
+```text
+RSI
+MACD
+bollinger
+```
+
+### Volume
+
+```text
+volume_z
+```
+
+Then compare:
+
+```text
+all 8
+momentum only
+volatility only
+technical only
+momentum + volatility
+momentum + technical
+etc.
+```
+
+This answers:
+
+> Does the model need many features, or does it primarily discover one latent factor?
+
+---
+
+# 9. The 8 → 16 experiment should become a proper scaling experiment
+
+You already did:
+
+```text
+8 → 16
+```
+
+But that's only one point.
+
+I would do:
+
+$$
+4 \rightarrow 8 \rightarrow 12 \rightarrow 16 \rightarrow 24 \rightarrow 32
+$$
+
+while keeping:
+
+* dataset
+* seeds
+* architecture
+* training budget
+* optimizer
+* evaluation
+* transaction costs
+
+identical.
+
+Then plot:
+
+```text
+                  Performance
+                       │
+                       │        ●
+                       │     ●
+                       │   ●
+                       │ ●
+                       │●
+                       └────────────────
+                         4  8  16 24 32
+                              Features
+```
+
+There are several possible outcomes.
+
+### Case A — monotonic improvement
+
+Then information was the bottleneck.
+
+### Case B — plateau
+
+Then the original 8 features were already sufficient.
+
+### Case C — inverted U
+
+This is particularly interesting:
+
+> Additional features initially help, but eventually hurt because the RL objective struggles to learn from redundant/noisy dimensions.
+
+### Case D — completely flat
+
+This suggests the bottleneck isn't information.
+
+And **your existing 8→16 TACR result is already pointing toward C/D**, rather than "we need more fields."
+
+---
+
+# 10. Measure information efficiency
+
+You can go one step further.
+
+Define something like:
+
+$$
+IE =
+\frac{\text{out-of-sample performance}}
+{\text{number of input dimensions}}
+$$
+
+But I'd actually prefer:
+
+$$
+\text{Marginal information efficiency}
+=
+\frac{\Delta Performance}{\Delta Features}
+$$
+
+Then compare RL models.
+
+For example:
+
+| Features | Sharpe | ΔSharpe |
+| -------: | -----: | ------: |
+|        4 |   0.72 |       — |
+|        8 |   0.96 |   +0.24 |
+|       16 |   0.97 |   +0.01 |
+|       32 |   0.95 |   −0.02 |
+
+That would give you a very clean conclusion:
+
+> Most of the exploitable information is captured by the first eight variables.
+
+---
+
+# 11. Representation similarity between RL models
+
+This is another experiment I strongly recommend.
+
+Train:
+
+```text
+GRU
+LSTM
+Transformer
+MLP
+```
+
+on the **same exact information**.
+
+Extract hidden states.
+
+Then compare representations using:
+
+* CKA
+* SVCCA
+* RSA
+* cosine similarity
+* linear alignment
+
+The question becomes:
+
+> **Do different RL algorithms discover the same latent representation of the market?**
+
+This is much more fundamental than:
+
+> Which architecture has the highest Sharpe?
+
+You could discover something like:
+
+```text
+                 Representation similarity
+
+                 GRU   LSTM   Transformer
+GRU              1.0   .81       .42
+LSTM             .81   1.0       .46
+Transformer      .42   .46       1.0
+```
+
+If GRU and LSTM representations are similar while Transformer is radically different, that itself is interesting.
+
+---
+
+# 12. Temporal representation experiments
+
+Because this is financial time series, I would specifically investigate **what history the model actually uses**.
+
+You have a 20-day context.
+
+But does it need 20 days?
+
+Run:
+
+```text
+context = 1
+context = 3
+context = 5
+context = 10
+context = 20
+context = 40
+context = 60
+```
+
+Then examine both performance **and representation**.
+
+More importantly, mask different parts of the sequence:
+
+```text
+days -1 to -5
+days -6 to -10
+days -11 to -20
+```
+
+and see how much the action changes.
+
+Define:
+
+$$
+I_k =
+E[(a_t-a_t^{mask(k)})^2]
+$$
+
+You effectively obtain a **temporal receptive field of the trading policy**.
+
+You might find:
+
+> Although TACR receives 20 days, 80% of its action variance comes from the last 3 days.
+
+That's a much more interpretable result.
+
+---
+
+# 13. Feature × time importance
+
+You can combine the two.
+
+Create an importance matrix:
+
+```text
+              t-1   t-2   t-3   ... t-20
+
+ret_1d        ███   ██    █
+ret_5d        ██    ██    █
+ret_20d       █     █     ██
+vol           ███   ██    ██
+RSI           ██    ██    █
+MACD          █     ██    █
+volume        █     █     █
+bollinger     ██    █     █
+```
+
+Now you have a visualization of **what the policy is actually looking at**.
+
+---
+
+# 14. Counterfactual policy analysis
+
+This is probably the most intuitive interpretability experiment.
+
+Take a real state:
+
+```text
+ret_1d = -2%
+ret_5d = -4%
+vol = high
+RSI = low
+...
+```
+
+and perturb one feature:
+
+```text
+ret_1d = -2% → +2%
+```
+
+Then measure:
+
+$$
+\Delta a = a(x')-a(x)
+$$
+
+Repeat across thousands of observations.
+
+You can estimate:
+
+$$
+\frac{\partial a}{\partial x_i}
+$$
+
+or nonlinear response curves.
+
+For each feature, generate:
+
+> **What does this RL policy do when this variable increases while everything else stays fixed?**
+
+That gives you policy response curves.
+
+---
+
+# 15. Compare RL representations with supervised representations
+
+This is especially relevant to your C+ result.
+
+Train:
+
+```text
+Logistic direction model
+GRU
+TACR
+```
+
+Then compare their hidden representations.
+
+Ask:
+
+> Is the RL model actually learning a different representation, or is the supervised model simply extracting a component that RL fails to preserve?
+
+Even more interesting:
+
+Train probes to predict:
+
+```text
+supervised P(up)
+RL action
+future return
+future volatility
+```
+
+from every representation.
+
+You could obtain:
+
+| Representation | Direction | Vol | Regime | Magnitude |
+| -------------- | --------: | --: | -----: | --------: |
+| Raw X          |         ✓ |   ✓ |      ✓ |         × |
+| Logistic       |        ✓✓ |   × |      × |         × |
+| GRU            |         ✓ |  ✓✓ |     ✓✓ |         × |
+| TACR           |         × |   ✓ |      ✓ |         × |
+
+That tells a coherent story.
+
+---
+
+# 16. A very interesting experiment: "does RL learn a trading representation or a reward representation?"
+
+This is where I think your project could become genuinely novel.
+
+Train models using different objectives:
+
+### A. Predictive objective
+
+$$
+\min \mathcal L(Y_{t+1},\hat Y)
+$$
+
+### B. DSR objective
+
+Your DDR.
+
+### C. Actor-critic objective
+
+TACR.
+
+### D. Self-supervised objective
+
+Predict masked future/previous features.
+
+Then compare representations.
+
+The question:
+
+> **Does the reward function determine what financial information the representation preserves?**
+
+That is a much deeper ML question.
+
+---
+
+# 17. Finance ideas beyond trading-component decomposition
+
+There are several directions I would consider.
+
+And I would avoid jumping into another generic "RL improves Sharpe" paper.
+
+Instead, test **mechanisms**.
+
+## Idea 1 — Information bottleneck in financial state representations
+
+Your 8→16 result naturally leads here.
+
+Core hypothesis:
+
+> Financial trading performance saturates quickly as state dimensionality increases because many commonly used indicators are redundant transformations of a small number of latent market factors.
+
+Experiment:
+
+```text
+4 / 8 / 12 / 16 / 24 / 32 features
+        ↓
+same RL model
+        ↓
+performance + representation metrics
+```
+
+Then quantify redundancy.
+
+This could be a very clean paper.
+
+---
+
+# 18. Idea 2 — Does RL learn latent market regimes?
+
+Rather than manually specifying:
+
+```text
+bull / bear / crisis
+```
+
+ask whether the hidden state naturally clusters.
+
+Take \(h_t\).
+
+Run:
+
+* k-means
+* Gaussian mixture
+* HDBSCAN
+
+Then compare clusters with:
+
+* volatility
+* returns
+* drawdowns
+* VIX
+* macro variables
+* your existing regime labels
+
+The interesting question:
+
+> **Are manually defined regimes actually present in the learned representation?**
+
+And:
+
+> Do different models discover the same regimes?
+
+---
+
+# 19. Idea 3 — Representation collapse in financial RL
+
+This is potentially very interesting given your TACR behavior.
+
+Measure effective dimensionality of \(h_t\).
+
+For example, calculate the covariance:
+
+$$
+C = Cov(H)
+$$
+
+and its eigenvalues:
+
+$$
+\lambda_1,\lambda_2,\ldots,\lambda_d
+$$
+
+Then calculate effective rank:
+
+$$
+r_{eff}
+=
+\exp\left(
+-\sum_i p_i\log p_i
+\right)
+$$
+
+where
+
+$$
+p_i=\frac{\lambda_i}{\sum_j\lambda_j}.
+$$
+
+If a 128-dimensional Transformer embedding has effective rank of, say, 7, then the model isn't really using a 128-dimensional representation.
+
+That would be fascinating.
+
+You could compare:
+
+```text
+GRU 32D → effective rank 8
+TACR 128D → effective rank 6
+```
+
+Potential conclusion:
+
+> High-capacity financial RL networks may compress market states into a very low-dimensional representation.
+
+---
+
+# 20. Idea 4 — Does the model learn price information or market state?
+
+Train probes from the hidden state to reconstruct:
+
+```text
+past returns
+volatility
+volume
+technical indicators
+macro factors
+```
+
+If \(h_t\) reconstructs:
+
+```text
+ret_1d
+ret_5d
+ret_20d
+vol
+```
+
+very accurately, but doesn't predict future return, then the representation is primarily **descriptive**, not predictive.
+
+That's an important distinction.
+
+---
+
+# 21. Idea 5 — Temporal leakage / memorization vs generalization
+
+Because offline financial RL can be extremely vulnerable to memorizing trajectory patterns, deliberately destroy temporal structure.
+
+For example:
+
+### Experiment A
+
+Original sequence.
+
+### Experiment B
+
+Shuffle observations within regime.
+
+### Experiment C
+
+Shuffle observations globally.
+
+### Experiment D
+
+Preserve marginal distributions but destroy temporal dependencies.
+
+Then train the same model.
+
+If performance remains surprisingly similar after destroying temporal structure, the model isn't exploiting the temporal dynamics you thought it was.
+
+This is a powerful sanity check.
+
+---
+
+# 22. Idea 6 — Causal feature substitution
+
+This one is particularly finance-specific.
+
+Take a feature:
+
+```text
+RSI
+```
+
+Replace it with an independent variable having the **same distribution**.
+
+If performance doesn't change, RSI wasn't contributing information.
+
+Do this systematically.
+
+You can create:
+
+### Null feature
+
+Same mean/std/distribution, randomized temporal order.
+
+### Autocorrelated null
+
+Preserves time-series autocorrelation but contains no predictive relationship.
+
+### Factor-matched null
+
+Preserves correlation with other features but destroys future predictiveness.
+
+Then compare.
+
+This separates:
+
+> distributional information
+
+from
+
+> temporal information
+
+from
+
+> genuinely predictive information.
+
+---
+
+# 23. Idea 7 — Can the model identify when its information is insufficient?
+
+Your uncertainty hypothesis was null, but that doesn't mean uncertainty is a dead research area.
+
+You tested ensemble disagreement.
+
+A better question is:
+
+> **Can representation geometry identify states where the model is outside its training distribution?**
+
+Calculate distance from current \(h_t\) to the training representation distribution:
+
+$$
+D(h_t,\mathcal H_{train})
+$$
+
+using:
+
+* Mahalanobis distance
+* kNN distance
+* density estimation
+* energy score
+
+Then test whether large representation distance predicts:
+
+* sign error
+* drawdown
+* action instability
+* poor future Sharpe
+
+This is **representation-based OOD detection**, rather than generic ensemble uncertainty.
+
+That is much more defensible.
+
+---
+
+# 24. Idea 8 — Market transferability of representations
+
+You already found:
+
+> SPY-trained weights → CSI300/NIFTY ≈ chance.
+
+Now separate **representation transfer** from **policy transfer**.
+
+Train:
+
+```text
+SPY encoder
+CSI encoder
+NIFTY encoder
+```
+
+Then freeze the encoder and train only a tiny linear head on another market.
+
+Four experiments:
+
+```text
+SPY encoder → SPY head
+SPY encoder → China head
+China encoder → China head
+random encoder → China head
+```
+
+If a frozen SPY encoder plus a small China head works, then:
+
+> representation transfers but decision boundary doesn't.
+
+If it doesn't:
+
+> financial representations themselves are market-specific.
+
+That is a much more interesting cross-market result than simply "weights don't transfer."
+
+---
+
+# 25. Idea 9 — Does more data matter more than more features?
+
+This is another experiment I'd strongly recommend.
+
+You currently have:
+
+```text
+8 features
+```
+
+Instead of adding features, vary training data:
+
+```text
+10%
+25%
+50%
+75%
+100%
+```
+
+Then compare:
+
+```text
+4 features + 100% data
+8 features + 100%
+16 features + 100%
+
+8 features + 25%
+8 features + 50%
+8 features + 100%
+```
+
+You can answer:
+
+> Is the bottleneck information dimensionality or sample size?
+
+This is especially important for Transformers.
+
+A large model + 16 features + ~16k transitions may simply be an unfavorable sample/parameter ratio.
+
+---
+
+# 26. Idea 10 — Parameter scaling
+
+This pairs beautifully with the feature scaling experiment.
+
+For TACR:
+
+```text
+embedding = 16
+32
+64
+128
+256
+```
+
+while holding features fixed.
+
+Then create a 2D grid:
+
+|      | 4 features |  8 | 16 | 32 |
+| ---- | ---------: | -: | -: | -: |
+| 16D  |            |    |    |    |
+| 32D  |            |    |    |    |
+| 64D  |            |    |    |    |
+| 128D |            |    |    |    |
+| 256D |            |    |    |    |
+
+This lets you study:
+
+> **Does financial RL benefit from capacity?**
+
+rather than simply reporting that one architecture wins.
+
+---
+
+# 27. The strongest paper I see emerging from your current project
+
+If I were redesigning this project now, I would make the central thesis something like:
+
+> **Understanding Representation Learning in Offline Financial Reinforcement Learning**
+
+with three research questions.
+
+### RQ1 — Information
+
+**How many independent pieces of information does a financial RL policy actually need?**
+
+Experiments:
+
+* 4/8/12/16/24/32 features
+* feature ablation
+* permutation
+* redundancy
+* feature groups
+
+### RQ2 — Representation
+
+**What does the RL model encode?**
+
+Experiments:
+
+* linear probes
+* nonlinear probes
+* effective rank
+* CKA
+* temporal masking
+* feature masking
+* counterfactual actions
+
+### RQ3 — Generalization
+
+**Are learned financial representations transferable?**
+
+Experiments:
+
+* SPY → CSI300
+* SPY → NIFTY
+* frozen encoder + new head
+* random encoder control
+* regime-specific transfer
+
+Then your existing trading results become the **evaluation layer**, rather than the entire research question.
+
+---
+
+# 28. One experiment I'd prioritize above everything else
+
+If you want something you can implement relatively quickly, I would do this:
+
+## "What does the hidden state know?"
+
+For each of:
+
+```text
+DDR-GRU
+TACR
+C+ logistic
+D-fuzzy/IQL
+```
+
+extract \(h_t\).
+
+Then train identical probes:
+
+```text
+Probe 1: next-day direction
+Probe 2: 5-day direction
+Probe 3: next-day |return|
+Probe 4: 20d volatility
+Probe 5: regime
+Probe 6: drawdown
+Probe 7: behavior policy
+Probe 8: current feature reconstruction
+```
+
+Then make one table:
+
+| Model representation | Direction | Magnitude | Volatility | Regime | Policy ID |
+| -------------------- | --------: | --------: | ---------: | -----: | --------: |
+| DDR                  |           |           |            |        |           |
+| TACR                 |           |           |            |        |           |
+| C+                   |           |           |            |        |           |
+| D                    |           |           |            |        |           |
+
+And another:
+
+| Model | Dimensionality | Effective rank | Temporal horizon | Feature sensitivity |
+| ----- | -------------: | -------------: | ---------------: | ------------------: |
+| DDR   |             32 |                |                  |                     |
+| TACR  |            128 |                |                  |                     |
+| D     |                |                |                  |                     |
+
+That could explain **why DDR beats TACR** even if their headline architectures look very different.
+
+---
+
+# 29. And this changes how I'd interpret your current null result
+
+I wouldn't conclude:
+
+> "Trading decision decomposition is falsified."
+
+That's too strong.
+
+Your evidence supports something more precise:
+
+> **In this experimental setting, jointly learning the full continuous trading action did not produce measurable incremental value over a decomposed supervised-direction + sizing construction.**
+
+Your existing paper already appropriately says that decomposition isn't universally proven; it is conditional on the tested setting.
+
+The more interesting unresolved question is **why**.
+
+There are at least four competing explanations:
+
+```text
+                   Joint RL fails
+                        │
+        ┌───────────────┼────────────────┐
+        ↓               ↓                ↓
+ insufficient       objective       representation
+ information        mismatch        problem
+        │               │                │
+     8 → 16           DSR vs Q       bad encoding
+        │                                │
+        └───────────────┬────────────────┘
+                        ↓
+                 sample inefficiency
+```
+
+And your current 8→16 experiment is already evidence **against a simple "not enough features" explanation**: adding the eight macro/cross-asset variables barely changes TACR's negative margin.
+
+So rather than adding more and more financial features, I would now ask:
+
+> **What information does each architecture actually retain in its latent state?**
+
+That is the natural next chapter of this project.
+
+
+The key is that **you don't need to abandon the existing project**. The existing null results actually make these experiments more compelling: you've established that adding information alone doesn't rescue end-to-end RL, so now you can investigate **information utilization and representation formation** rather than just continuing to search for a better Sharpe.

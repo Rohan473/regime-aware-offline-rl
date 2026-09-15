@@ -105,6 +105,9 @@ class DConfig:
     batch_size: int = 64               # paper 256; CPU-scaled (documented)
     warmup_steps: int = 1000           # linear warmup, scaled to the 3k budget
     seed: int = 20260814
+    policy_weights: tuple[float, ...] | None = None  # per-policy sampling weights
+    # (None = uniform across policies; used by the 7.27.2 volume-vs-composition
+    #  discriminator, which holds total volume fixed and re-weights the mix)
 
     # --- eval / artifacts ---
     checkpoint_dir: Path = field(default_factory=lambda: Path(__file__).parent / "checkpoints")
@@ -177,6 +180,11 @@ class DConfig:
             problems.append("epochs and steps_per_epoch must be >= 1")
         if self.batch_size < 1:
             problems.append("batch_size must be >= 1")
+        if self.policy_weights is not None:
+            w = tuple(self.policy_weights)
+            if any(x < 0 for x in w) or abs(sum(w) - 1.0) > 1e-3:
+                problems.append("policy_weights must be non-negative and sum to ~1")
+            self.policy_weights = w
         if self.max_ep_len < self.u:
             problems.append("max_ep_len must be >= u")
         if problems:

@@ -83,6 +83,13 @@ def train_d(
     splits = split_d_data(data_full)
     train, val = splits["train"], splits["val"]
 
+    if cfg.policy_weights is not None:
+        if len(cfg.policy_weights) != len(train.policies):
+            raise ValueError(
+                f"policy_weights length {len(cfg.policy_weights)} != "
+                f"n policies {len(train.policies)}"
+            )
+
     state_in_dim = data_full.states_in.shape[-1]
     assert state_in_dim == cfg.state_in_dim, (
         f"data states_in {state_in_dim} != cfg.state_in_dim {cfg.state_in_dim} "
@@ -278,9 +285,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--warmup", type=int, default=None)
     parser.add_argument("--expectile", type=float, default=None)
+    parser.add_argument("--tau", type=float, default=None,
+                        help="polyak target-network EMA rate (cfg.tau, default 0.005)")
     parser.add_argument("--temperature", type=float, default=None)
     parser.add_argument("--tag", type=str, default=None,
                         help="append a subdir to checkpoint_dir (diagnostic runs)")
+    parser.add_argument("--policy-weights", type=str, default=None,
+                        help="comma-separated per-policy sampling weights (len == "
+                             "n policies; 7.27.2 composition-matched diagnostics)")
     args = parser.parse_args(argv)
 
     cfg = DConfig.from_yaml(args.config) if args.config else DConfig.from_yaml()
@@ -297,8 +309,12 @@ def main(argv: list[str] | None = None) -> None:
         cfg.warmup_steps = args.warmup
     if args.expectile is not None:
         cfg.expectile = args.expectile
+    if args.tau is not None:
+        cfg.tau = args.tau
     if args.temperature is not None:
         cfg.temperature = args.temperature
+    if args.policy_weights is not None:
+        cfg.policy_weights = tuple(float(x) for x in args.policy_weights.split(","))
 
     if args.tag is not None:
         cfg.checkpoint_dir = cfg.checkpoint_dir / args.tag

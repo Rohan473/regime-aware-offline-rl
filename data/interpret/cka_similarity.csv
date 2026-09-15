@@ -1,0 +1,4 @@
+repr_a,repr_b,cka
+DDR-GRU (32d),TACR transformer (128d),0.8002086877822876
+DDR-GRU (32d),D encoder (128d),0.7633814811706543
+TACR transformer (128d),D encoder (128d),0.8316949605941772

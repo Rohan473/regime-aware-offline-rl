@@ -139,7 +139,11 @@ def roll_test_predictions(
         raise FileNotFoundError(f"no checkpoint at {checkpoint} — run `python -m src.models.tacr.train` first")
     model, action_model, _ = load_checkpoint(checkpoint, cfg)
     if data is None:
-        data = load_tacr_data(cfg.u, exclude_policies=cfg.exclude_policies)
+        data = load_tacr_data(
+            cfg.u,
+            exclude_policies=cfg.exclude_policies,
+            state_macro=cfg.state_macro,
+        )
     splits = split_tacr_data(data)
     test = splits["test"]
     dates = test.dates
@@ -225,9 +229,25 @@ def regime_row(ret: np.ndarray, regime: np.ndarray, exposure: dict) -> dict:
     return row
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Evaluate Model C (TACR).")
+    parser.add_argument("--tag", type=str, default=None,
+                        help="checkpoint subdir (e.g. macro16) already chosen at train time")
+    parser.add_argument("--state-macro", action="store_true",
+                        help="eval the 16-dim (macro) pack: load states with state_macro=True")
+    args = parser.parse_args(argv)
+
     cfg = TACRConfig.from_yaml()
-    data = load_tacr_data(cfg.u, exclude_policies=cfg.exclude_policies)
+    if args.state_macro:
+        cfg.state_macro = True
+    if args.tag is not None:
+        cfg.checkpoint_dir = cfg.checkpoint_dir / args.tag
+    data = load_tacr_data(
+        cfg.u,
+        exclude_policies=cfg.exclude_policies,
+        state_macro=cfg.state_macro,
+    )
     splits = split_tacr_data(data)
     cfg.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 

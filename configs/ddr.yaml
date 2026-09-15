@@ -16,6 +16,9 @@ model:
   epochs: 30
   seed: 20260814
   transaction_cost_bps: 0.0
+  # Cost charged on TURNOVER (see src/models/ddr/train.py `_strategy_returns`
+  # and dsr.py VolTargetBuffer): r_t = a_t*R_{t+1} - (bps/1e4)*|a_t - a_{t-1}|.
+  # Paid only when the (deployed) position changes; NOT a holding tax on |a_t|.
 
   # --- volatility-targeted DSR reward (reward fix) ---
   vol_targeting: true        # false -> naive DSR on raw a_t * ret_{t+1}

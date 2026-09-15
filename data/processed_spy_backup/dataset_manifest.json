@@ -1,0 +1,427 @@
+{
+  "generated_at_utc": "2026-09-03T05:00:49.748129+00:00",
+  "date_range": {
+    "start": "2005-03-31",
+    "end": "2026-03-30"
+  },
+  "n_transitions": 168516,
+  "n_days_used": 5283,
+  "regime_counts_days": {
+    "bear": 1009,
+    "bull": 3754,
+    "crisis": 520
+  },
+  "regime_counts_transitions": {
+    "bear": 31984,
+    "bull": 119892,
+    "crisis": 16640
+  },
+  "policies": {
+    "buy_and_hold": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": 1.0,
+      "action_std": 0.0,
+      "action_min": 1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000397
+    },
+    "mean_reversion_10d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0574,
+      "action_std": 0.3952,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000149
+    },
+    "mean_reversion_11d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0592,
+      "action_std": 0.3939,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000117
+    },
+    "mean_reversion_12d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0613,
+      "action_std": 0.3946,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000134
+    },
+    "mean_reversion_13d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0641,
+      "action_std": 0.3948,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000115
+    },
+    "mean_reversion_14d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0659,
+      "action_std": 0.3947,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000113
+    },
+    "mean_reversion_15d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0678,
+      "action_std": 0.3938,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000157
+    },
+    "mean_reversion_16d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0692,
+      "action_std": 0.3931,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000115
+    },
+    "mean_reversion_17d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0705,
+      "action_std": 0.3928,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000141
+    },
+    "mean_reversion_18d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0721,
+      "action_std": 0.3928,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000133
+    },
+    "mean_reversion_19d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.074,
+      "action_std": 0.3926,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000132
+    },
+    "mean_reversion_1d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0185,
+      "action_std": 0.4213,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000381
+    },
+    "mean_reversion_20d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0763,
+      "action_std": 0.3923,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 7.8e-05
+    },
+    "mean_reversion_2d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0263,
+      "action_std": 0.4183,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000259
+    },
+    "mean_reversion_3d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0321,
+      "action_std": 0.4164,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000232
+    },
+    "mean_reversion_4d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0368,
+      "action_std": 0.4118,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000263
+    },
+    "mean_reversion_5d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0409,
+      "action_std": 0.4074,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000229
+    },
+    "mean_reversion_6d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0448,
+      "action_std": 0.4042,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000203
+    },
+    "mean_reversion_7d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0484,
+      "action_std": 0.4014,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000204
+    },
+    "mean_reversion_8d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0523,
+      "action_std": 0.3987,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.00018
+    },
+    "mean_reversion_9d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": -0.0552,
+      "action_std": 0.3958,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 0.000138
+    },
+    "momentum_100d": {
+      "n": 5243,
+      "share": 0.0311,
+      "action_mean": 0.1609,
+      "action_std": 0.377,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": -2.3e-05
+    },
+    "momentum_120d": {
+      "n": 5223,
+      "share": 0.031,
+      "action_mean": 0.1778,
+      "action_std": 0.378,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 1.1e-05
+    },
+    "momentum_150d": {
+      "n": 5193,
+      "share": 0.0308,
+      "action_mean": 0.1966,
+      "action_std": 0.3829,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": -1e-06
+    },
+    "momentum_200d": {
+      "n": 5143,
+      "share": 0.0305,
+      "action_mean": 0.2209,
+      "action_std": 0.4004,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 1.1e-05
+    },
+    "momentum_250d": {
+      "n": 5093,
+      "share": 0.0302,
+      "action_mean": 0.2421,
+      "action_std": 0.4028,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": 4.5e-05
+    },
+    "momentum_30d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": 0.0921,
+      "action_std": 0.3897,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": -7.9e-05
+    },
+    "momentum_40d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": 0.105,
+      "action_std": 0.3827,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": -5.1e-05
+    },
+    "momentum_60d": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": 0.1241,
+      "action_std": 0.3829,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": -9.7e-05
+    },
+    "momentum_80d": {
+      "n": 5263,
+      "share": 0.0312,
+      "action_mean": 0.1436,
+      "action_std": 0.3809,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": -3e-05
+    },
+    "nr7": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": 0.0133,
+      "action_std": 0.3248,
+      "action_min": -1.0,
+      "action_max": 1.0,
+      "reward_mean": -6.4e-05
+    },
+    "random": {
+      "n": 5283,
+      "share": 0.0314,
+      "action_mean": 0.0074,
+      "action_std": 0.5724,
+      "action_min": -0.9994,
+      "action_max": 0.9997,
+      "reward_mean": -5.3e-05
+    }
+  },
+  "state_dim": 8,
+  "config": {
+    "data": {
+      "raw_dir": ".",
+      "raw_pattern": "SPY_*.parquet",
+      "processed_dir": "data/processed",
+      "universe": [
+        "SPY"
+      ],
+      "start_date": "2005-01-01",
+      "end_date": "2026-07-31",
+      "resample": {
+        "timezone": "America/New_York",
+        "open": "first",
+        "high": "max",
+        "low": "min",
+        "close": "last",
+        "volume": "sum"
+      }
+    },
+    "features": {
+      "price_col": "close",
+      "returns": [
+        1,
+        5,
+        20
+      ],
+      "realized_vol_window": 20,
+      "rsi_window": 14,
+      "macd": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "volume_zscore_window": 20,
+      "bollinger": {
+        "window": 20,
+        "num_std": 2.0
+      },
+      "normalize_state": true,
+      "normalize_mode": "expanding",
+      "normalize_window": 252,
+      "normalize_min_periods": 60
+    },
+    "regime_file": "configs\\regimes.yaml",
+    "dataset": {
+      "transaction_cost_bps": 0.0
+    },
+    "behavior_policies": {
+      "position_min": -1.0,
+      "position_max": 1.0,
+      "policies": {
+        "momentum": {
+          "windows": [
+            30,
+            40,
+            60,
+            80,
+            100,
+            120,
+            150,
+            200,
+            250
+          ],
+          "scale": 0.1,
+          "scale_ref_window": 20
+        },
+        "mean_reversion": {
+          "windows": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "scale": 0.05,
+          "scale_ref_window": 5
+        },
+        "buy_and_hold": {
+          "target_allocation": 1.0
+        },
+        "random": {},
+        "nr7": {}
+      },
+      "seed": 20260814
+    },
+    "regimes": {
+      "lookback_return_days": 60,
+      "bull_threshold": 0.0,
+      "bear_threshold": 0.0,
+      "crisis": {
+        "vol_window_days": 20,
+        "percentile": 95.0,
+        "percentile_min_periods": 300,
+        "min_vol_annualized": 0.02
+      },
+      "hysteresis": {
+        "crisis_confirmation_days": 2,
+        "crisis_exit_mult": 0.8,
+        "min_regime_duration_days": 5
+      }
+    }
+  }
+}

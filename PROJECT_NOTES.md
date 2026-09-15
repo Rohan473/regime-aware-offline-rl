@@ -6,7 +6,7 @@ This file is a complete record of everything done in this project, in order,
 with the final verdict stated plainly at the end. Read it top to bottom if
 you are new; the last two sections are the ones that matter.
 
-**CURRENT STATE (2026-08-26) — the project's best result is Model C+ (section
+**CURRENT STATE (2026-09-05) — the project's best result is Model C+ (section
 7.17-7.22):** a hybrid that decouples TACR's two skills. The Transformer
 (fix_a_nr7, double-Q-min/uniform/nr7) supplies LEVERAGE TIMING |a|; a simple
 L2 logistic on 8 SPY + 8 macro/cross-asset causal features supplies
@@ -16,6 +16,25 @@ The 8 macro features (rates, vol term structure, dollar, credit proxy,
 cross-market momentum — fetched into data/macro/) are the load-bearing
 addition (margin +0.30 with vs +0.18 without). Regime-filtering, focal-loss
 sign retraining and SKEW sentiment were tested and are nulls (7.20-7.22).
+
+**REPRESENTATION LABORATORY (2026-09-15, section 8.x):** a new thread that
+makes the learned hidden state the object of study. Linear probes on the
+frozen models show NO 1-day directional info anywhere (dir1 0.538 = baseline)
+while regime and (in raw) vol are readable; all learned reps linearly collapse
+(effective spectral rank 3.2-7.7 << 8). Idea 16 (one encoder, 4 objectives)
+shows ~79-95% of the linear subspace is shared across objectives (reward
+shapes the tail: DSR keeps the most dims + the only behaviorally strong arm).
+The advisor's rep x policy design: three frozen representation learners
+(auto/predictive/contrastive) + downstream A2C -> the predictive rep raises
+the SUPERVISED direction policy Sharpe 0.394 -> 1.036 but RL-A2C is negative
+on every rep (RL cannot compensate for the representation).
+
+**CSI300 / CHINA EXTENSION (2026-09-04, section 7.28):** the full pipeline and
+all four models were re-run on the CSI300 index (sh000300, Sina). DDR
+vol-targeted is the best CSI300 model (+0.41 Sharpe, 5/5 vs EM); naive DDR
+(+0.26, 5/5) and the C+ sign (margin +0.22, 5/5) also beat their EM controls;
+China macro does NOT improve the sign head; TACR and D fail on CSI300 exactly
+as on SPY. See section 7.28 for the full table.
 
 Phases, in order:
 
@@ -36,8 +55,15 @@ Phases, in order:
   case (7.6, 7.10-7.16); its leverage timing is salvageable and is the
   magnitude source of Model C+.
 
-  Phase 4 (complete): Model D, the fuzzy-uncertainty ablation — stable, but
-  the fuzzy layer is null (7.9-7.9.2).
+  Phase 4 (complete): Model D, the fuzzy-uncertainty ablation — trains
+  stably while the fitted policy stays long-dominant (short_frac <= ~10%):
+  in the 4-policy mix, at 6.6x volume with matched composition (7.9,
+  7.27.2), and any mean-reversion sampling share that keeps the fitted
+  short-side mass low (7.27.3); it unravels only as contrarian sampling
+  pushes the fitted short_frac high — the boundary is the short-side mass,
+  not distance from the old mix, and cannot be rescued by any IQL optimizer
+  hyperparameter (AWR β 7.27.4, polyak τ / expectile τ 7.27.5: all r ~ 0).
+  The fuzzy layer is null (7.9-7.9.2).
 
 The single most important outcome of the project is NOT the model. It is the
 discovery and root-causing of TWO independent failure modes:
@@ -2235,6 +2261,440 @@ headline. The chain is the deliverable.
       trend is a majority class and is unpredictable.
 
 ------------------------------------------------------------------------------
+7.26 CONFIRMATORY RUN — C+ ON THE UNTOUCHED 2025-2026 WINDOW (2026-08-29)
+------------------------------------------------------------------------------
+    - PREREGISTERED PROTOCOL (single run, stop after one report): every
+      7.10-7.25 experiment was evaluated on the SAME 2021-2024 test window,
+      with each next experiment informed by those numbers (a garden-of-
+      forking-paths hazard). This run evaluates the FROZEN canonical C+
+      artifacts on 2025-01-01..2026-03-31 — a window no selection ever
+      touched. Magnitude |a|: the fix_a_nr7 per-seed checkpoints (frozen
+      .pt files). Sign: the ref16 CE logistic (8 SPY z + 8 macro causal z,
+      C=1.0) refit DETERMINISTICALLY on the frozen train split
+      (<=2018-12-31) — sklearn L2-LBFGS is deterministic on fixed data, so
+      this reproduces the 7.18 weights exactly; nothing is fit on or touched
+      by 2025-2026. `load_tacr_data` gained a backward-compatible
+      `test_end` param (default SPLIT_TEST_END). Transformer timesteps past
+      the last trained position (4782) are clamped to 4782 — the trajectory
+      is frozen at its last trained step (never-seen embedding rows are not
+      used). Script: scripts/hybrid_sign_confirmation.py.
+    - REPRODUCIBILITY FINDING (surfaced by the user-demanded eyeball, before
+      the confirmation run): the 7.18/7.22 B-row numbers are NOT byte-
+      reproducible on the post-7.25 regenerated features frame. Current-state
+      reproduction of the canonical 2021-2024 window with the frozen artifact:
+      acc 0.5403 / short_frac 0.0627 / margin +0.3072 / 5/5 / Sharpe 1.1573,
+      vs recorded 0.5393 / 0.0637 / +0.2962 / 1.146. The A rows reproduce
+      EXACTLY (0.2259, 0.1788 to 4 decimals), so the 8 SPY z-features, the
+      rolls and the 1005-day window are bit-identical; only the 16-dim macro
+      head drifted, by ~one short day. Not pinned to a single row with
+      surviving evidence (macro parquet + code unchanged; suspicion: a tiny
+      macro-feed delta at train dates from the regeneration, or a library
+      numerics path). Same qualitative verdict either way — recorded as-is,
+      no retroactive edit of the 7.18 table.
+    - CONFIRMATION WINDOW (2025-01-01..2026-03-31, 310 feasible days; regimes
+      bull 229 / bear 60 / crisis 21), FROZEN artifact, reported ONCE:
+        per-seed margin  +0.4389 / +0.3031 / +0.2672 / +0.3100 / +0.0551
+        per-seed Sharpe   0.878 /  0.776 /  0.752 /  0.620 /  0.985
+        pack mean margin +0.2749 | pack mean Sharpe 0.802 +- 0.14 |
+        pack mean EM 0.527 | margin>0 5/5 | short_frac 0.0742 |
+        sign_acc 0.5419 | artifact csv: src/models/tacr/checkpoints/tacr/
+        hybrid_sign_confirmation.csv
+    - VERDICT: CONFIRMATION HOLDS. C+ generalizes to the untouched window
+      without retuning — pack margin +0.27 (5/5 positive) vs the frozen-
+      artifact canonical +0.31. Absolute Sharpe is lower (0.80 vs 1.16) in a
+      window that carries a bear rollout and crisis days, but the margin over
+      the |a|*m exposure baseline is positive, seed-consistent, and in line
+      with the in-sample level. Pre-registered stop honored: no iteration, no
+      tuning on this window. The deferred 16-dim TACR-state expansion (macro
+      features feeding the transformer state directly instead of only the
+      sign head) is now UNLOCKED as a follow-up — not part of today's run.
+    - suite: pytest 78/78 (5 files, post-loader-change).
+
+------------------------------------------------------------------------------
+7.27 MODEL D RETRAIN ON THE EXPANDED (32-POLICY) DATASET — THE DATA-SCALE
+       EXCUSE, TESTED (2026-08-30)
+------------------------------------------------------------------------------
+    - MOTIVATION (user): 7.9.1 attributed the D fuzzy-null to DATA SCALE —
+      "at this data scale (15.9k transitions, ~3.9k train days) the fixed
+      IT2 encoding adds no information the 2-layer input projection cannot
+      express" — a scale claim never tested. 7.11 expanded the offline
+      dataset exactly for this, but Model D was trained (7.9, 08-21) BEFORE
+      7.11 (08-25) and had never been retrained on the expanded data. User's
+      premise to test: "IQL doesn't need matched behavior-policy semantics
+      the way TACR's BC anchor does — it just wants more (s,a,r,s')
+      transitions."
+    - PROTOCOL: retrain BOTH D variants x 5 seeds at the pre-registered 3k
+      screen budget (10x300, batch 64, seed set identical to 7.9) on the
+      CURRENT offline dataset. Note: the dataset is now 32 policies /
+      168,516 rows — 7.11's "31 policies / 163,233" plus the 7.15 nr7
+      behavior policy (never excluded). Scale vs what 7.9 saw (4 policies /
+      21,132 rows): 8.0x rows; 32 x 3272 valid train days = 104,704 train
+      transitions = 6.6x the 15.9k. NO code, NO hyperparameter, NO eval
+      change. Artifacts: checkpoints/d_32p/.
+    - RESULTS (test 2021-12-31 clip, all-days Sharpe, 5 seeds, best-val ckpt):
+        VARIANT            mean   std    vs EM   final-epoch check
+        D (fuzzy) 32p      0.7106 0.0347 0/5     FAIL (best 0.711/final 0.592)
+        D-minus-fuzzy 32p  0.7136 0.0213 1/5     FAIL (best 0.714/final 0.626)
+        -- 7.9, 4-policy, for reference --
+        D (fuzzy) 4p       0.9310 0.0192 4/5     pass (best 0.931/final 0.894)
+        D-minus-fuzzy 4p   0.8807 0.0250 4/5     pass (best 0.881/final 0.882)
+        NOTE: the 4p reference above is the 7.9-RECORDED table (pre-7.25
+        loader). Same-pipeline recompute of the identical checkpoint files
+        reads 0.9042/0.8837 (see 7.27.2 results + note) — the gap is the
+        loader-clip reproducibility caveat, not a code change; all
+        cross-pack comparisons in 7.27.2 run on the one current pipeline.
+        ablation delta 32p 0.003 < bar 0.240 -> NULL (unchanged from 4p 0.050)
+    - MECHANISM (why the premise failed): the IQL sampler draws the POLICY
+      uniformly per batch. Of 110,276 train transitions (<=2018-12-31), the
+      mean-reversion family is 69,260 = 62.8%, with mean_action -0.040 and
+      short_frac 0.605 — 20 short-horizon CONTRARIAN policies dominate. The
+      AWR-weighted policy re-targets from the 4-policy-era long-biased
+      momentum follower (old D-minus-fuzzy short_frac < 2%, |a| ~ 0.29) into
+      a contrarian low-|a| mush (32p D-minus-fuzzy short_frac 0.17-0.32, |a|
+      0.15-0.20). Val collapses in lockstep (old best-val 1.21 for
+      s20260814 -> 0.235). It is a SCALE change coupled to an IDENTITY
+      change, not "more of the same data."
+    - READINGS (the "data-scale" question, now closed, and the swap decision):
+      (1) THE SCALE EXCUSE IS CLOSED for the fuzzy-vs-raw null: at ~6.6-8x
+          more transitions the fixed-IT2 ablation is STILL null (delta
+          0.003), so "more data would make the fixed IT2 encoding
+          informative" is unsupported at this scale too. It died the wrong
+          way (both variants regressed together) but it is closed — the
+          fixed IT2 channel was not rescued by 8x data.
+      (2) CONTRA THE USER PREMISE: IQL is NOT indifferent to the behavior
+          mix. The window-expanded families are not interchangeable
+          transitions; uniformly sampled, the 62.8% contrarian family
+          re-weights the support and REGRESSES IQL sharply (0.88 -> 0.71,
+          4/5 -> 1/5). A clean "does IQL improve with more data" test needs
+          a mixture-WEIGHTED (or family-limited, e.g. momentum + bh + nr7)
+          dataset — a NEW design, not run here (no speculative experiments).
+      (3) C+ MAGNITUDE-SWAP DECISION (per the user's decision rule grounded
+          on this rerun): REJECT — keep fix_a_nr7. The retrained
+          D-minus-fuzzy is not a magnitude candidate: it loses to its EM
+          control on 4/5 seeds, regressed structurally (0.88 -> 0.71), and
+          now fails the final-epoch check. Even the best AVAILABLE IQL
+          magnitude (the pre-7.11 20k D-minus-fuzzy: Sharpe 0.8837, stable,
+          final-epoch pass) has |a| ~ 0.29 mean — vs fix_a_nr7's test-window
+          |a| 0.56 pack mean (per-seed 0.25-0.84) — a materially smaller and
+          flatter exposure shape. The "comparable to 0.82 +- 0.15" premise
+          fails on level; nothing here overturns fix_a_nr7 as C+'s magnitude.
+    - suite: pytest 78/78 (no code changed this run; retrain + eval only).
+
+------------------------------------------------------------------------------
+7.27.1 IQL "STABILITY" CLAIM — REVERSED AT 32-POLICY SCALE, THEN RESCOPED
+      (2026-08-30; pulled out of the 7.27 ablation framing deliberately)
+------------------------------------------------------------------------------
+    - THE CLAIM THAT BROKE: 7.9's selling point for Model D was "the first
+      model in the project that trains stably offline" — no collapse at any
+      budget, final-epoch check passing everywhere "unlike C where every
+      checkpoint failed" (7.9 READINGS (1), CONCLUSION; repeated verbatim in
+      the executive summary line 39 as "Phase 4 ... stable"). At the
+      32-POLICY, UNWEIGHTED scale (7.27) that claim is FALSE:
+        D (fuzzy)      best-val mean 0.711 vs final 0.592  -> diff -0.119 (FAIL)
+        D-minus-fuzzy  best-val mean 0.714 vs final 0.626  -> diff -0.087 (FAIL)
+      Both variants now show exactly the TACR-shaped failure mode they were
+      built to avoid: the best-val checkpoint does not generalize to the
+      final optimizer state. This is NOT a footnote to the ablation null —
+      the ablation staying null says nothing about stability, and the two
+      are independent.
+    - WHAT IT MEANS, CORRECTED: "D trains stably" was true at the 4-policy /
+      ~16k-transition scale it was measured on and is a SCALE-AND-MIX-SCOPED
+      property, not a model property. It correlates with what the behavior
+      support looks like, established by 7.27.2 below: at matched
+      composition even 6.6x more volume passes the final-epoch check cleanly
+      (+0.045 / +0.033), so the stability is NOT broken by volume — it was
+      broken by re-weighting the mix toward the contrarian families.
+    - Exec summary (line 39) and FINAL VERDICT updated to carry this scope.
+
+------------------------------------------------------------------------------
+7.27.2 VOLUME vs COMPOSITION — THE DISCRIMINATOR (2026-08-30)
+------------------------------------------------------------------------------
+    - CONCERN (user): 7.27 watched TWO things change together (volume 6.6x
+      AND the mix shifting to contrarian short-horizon families) and
+      performance regress — a correlation, not a driver. The clean test:
+      hold TOTAL VOLUME fixed, vary ONLY the family proportions.
+    - PROTOCOL (scripts/d_composition_run.py): SAME pool (the 168,516-row /
+      32-policy dataset), SAME screen budget (batch 64 x 3000 steps x 5
+      seeds x both variants), SAME hyperparameters; ONLY the per-policy
+      sampling weights change — re-mapped to the pre-7.11 family proportions
+      (buy_and_hold 0.25 / momentum 0.25 / mean_reversion 0.25 / random
+      0.25; nr7 excluded — it was not in the old mix; uniform within
+      family). Implemented as a sampling-per-policy weight (config field
+      DConfig.policy_weights + CLI --policy-weights), zero effect on the
+      default uniform behavior.
+    - RESULTS (test 2021-12-31, all-days Sharpe, best-val ckpts, n=5;
+      reported mean +- seed std, SE = std/sqrt(5)):
+        dataset            D (fuzzy)  D-minus-fuzzy  DNF final-epoch  DNF short_frac
+        4-policy old (7.9) 0.9042+-0.053  0.8837+-0.042  pass              0-2.4%
+        32p UNWEIGHTED     0.7106+-0.039  0.7136+-0.024  FAIL -0.087       17-32%
+        32p COMP-MATCHED   0.8423+-0.060  0.8367+-0.038  pass +0.033       0.0% (BEST ckpts;
+                                                                          FINAL ckpts take
+                                                                          micro-shorts 0.6-1.1%,
+                                                                          still stable — 7.27.3)
+        ablation delta (comp-matched): 0.006 < bar 0.240 -> STILL NULL
+      NOTE on the "4-policy old" row: the same-pipeline recompute (this
+      script, current loaders) reads 0.9042/0.8837 off the 7.9 checkpoint
+      files (verified: epoch 10x300, batch 64, temp 3.0, fuzzy flags set).
+      The 7.9 header table recorded 0.9310/0.8807 under the pre-7.25 loader
+      (no 310-date clip) — the D gap is the same reproducibility caveat as
+      the A-row-exact / B-row-drift finding, NOT a second experiment. All
+      three packs below are compared on the ONE current pipeline.
+    - DIFFERENCE TESTS (two independent packs, n=5 each; pooled variance)
+      D-minus-fuzzy: old vs comp   gap +0.047, se 0.025, t=1.86, p~0.10 (NS)
+      D (fuzzy):     old vs comp   gap +0.062, se 0.036, t=1.73, p~0.12 (NS)
+      D-minus-fuzzy: comp vs 32p   gap +0.123, se 0.020, t=6.2  (sig)
+      D (fuzzy):     comp vs 32p   gap +0.132, se 0.032, t=4.1  (sig)
+      The old-4p pack spans 0.839-0.934 (DNF) / 0.816-0.943 (D); the
+      comp-matched pack spans 0.784-0.871 / 0.778-0.933 — the comp mean
+      sits INSIDE the old pack's seed spread, so the 0.047-0.062 gap is
+      inside the noise floor, not separable at n=5.
+    - READOUT — COMPOSITION IS THE DRIVER; VOLUME ALONE IS FINE (WITHIN
+      NOISE). Held at 6.6x volume with the old family proportions, IQL
+      recovers to within noise of its old level (no significant gap, p~0.10)
+      while sitting decisively above the unweighted 32p pack (t=4-6, p<0.005)
+      AND passes the final-epoch check (which at unweighted-32p was the
+      TACR-shaped FAIL). The regression, the reversal of the stability
+      claim, and the confusion of the policy are explained by the mixture
+      re-weighting, not by sample count: a bigger-but-mixed dataset breaks
+      IQL because the sampler picks policies uniformly and the 20-policy
+      contrarian family is 62.8% of the pool, not because IQL cannot use
+      more transitions. ("Recovers ~95%" would be a false precision — the
+      gap is not separable from seed noise and is stated as such.)
+    - BULL-MECHANISM CHECK (Q2 — is the comp-matched recovery the SAME
+      long-bull participation engine as the 4-policy run, or did the 32p
+      pool change HOW long exposure is taken? same-pipeline read):
+        metric                 old 4p DNF      comp-matched DNF
+        mean a | bull days     0.305 +- 0.066   0.311 +- 0.096
+        long%  | bull days     0.998            1.000
+        bull-day Sharpe        1.334 +- 0.044   1.269 +- 0.033
+        corr(a, m) all-days    0.0254           0.0291
+        mean |a|               0.297 +- 0.068   0.306 +- 0.093
+      SAME mechanism: the comp-matched recovery runs on the identical
+      long-bull-participation engine (mean long exposure on bull days within
+      2%, market correlation 0.025 vs 0.029 — both near zero and inside
+      noise, bull Sharpe within noise, |a| actually slightly HIGHER). 7.9's
+      own reading of D's edge — "long-bull participation, not from shorting
+      skill" — applies verbatim to both.
+    - THE 0/5 "TIE" IS NOW EVIDENCED, NOT ASSUMED: old-4p short_frac was
+      0.6% (micro-shorts on 4 of 5 seeds) and the per-seed EM margins
+      (+0.014/+0.018/+0.002/+0.000/+0.094) came EXCLUSIVELY from those <1%
+      of short days; comp-matched went to exactly 0.0% short, so margins are
+      exactly 0 in every seed (a > 0 everywhere => a == |a| => Sharpe(a*m) ==
+      Sharpe(|a|*m)) and wins = 0/5 is the 7.9.1 CHECK-2 long-only knife
+      edge, not a regression. The flip REINFORCES 7.9: the directional edge
+      was never the short side (0.6% of days carried it); stripping it
+      converts 4/5 margins of +0.01-+0.09 into exact ties at UNCHANGED long
+      behavior. The one observed behavior delta (old -> comp) is the
+      flattening of that micro-short fringe, at identical long participation.
+    - RESIDUAL (honest, not papered over): within-noise gap to the old pack
+      plus the flattened short fringe are observed; a small composition
+      component (within-family policy variety — 20 mean/horizons vs the old
+      single policy — or the shorter 32-policy common date grid) cannot be
+      excluded and partly explains the REMAINING non-decisive gap. Claim
+      made only at the family-proportion level; the across-family result is
+      the decisive leg.
+    - CONSEQUENCE for the C+ magnitude swap: still REJECT (unchanged from
+      7.27). Comp-matched D-minus-fuzzy |a| = 0.306 mean, long-only — same
+      conclusion as 7.27 (3): not comparable to fix_a_nr7's 0.56-pack
+      test-window |a| (0.25-0.84/seed) and WITHOUT the short-side timing the
+      EM margin needs. fix_a_nr7 stays.
+    - suite: pytest 78/78 (3-file change is additive, backward-visible only).
+
+------------------------------------------------------------------------------
+7.27.3 SHORT-SIDE MASS IS THE INSTABILITY MECHANISM — THE w_m SWEEP
+      (2026-08-30)
+------------------------------------------------------------------------------
+    - QUESTION (user): 7.27.2 proved composition (not volume) drives the
+      IQL regression, but "composition matters" is underspecified. Deliberate
+      single-axis sweep: upweight the mean_reversion family's SAMPLING
+      weight w_m (while holding total volume fixed) and watch whether
+      final-epoch failure returns as the fitted short_frac RISES —
+      independent of whether the mix resembles old-4p or 32p-unweighted.
+      If failure tracks short_frac, that is the mechanism; more useful than
+      "composition matters."
+    - PROTOCOL (scripts/d_msw_sweep.py): SAME pool (168,516-row / 32-
+      policy), SAME budget (batch 64 x 3000 x 5 seeds x BOTH variants),
+      SAME sampler mechanics; ONLY the family weights change along w_m in
+      [0.25, 0.40, 0.55, 0.70, 0.85] with bh = momentum = random = (1-w_m)/3
+      (nr7 excluded). w_m=0.25 reproduces the comp-matched baseline; 0.625
+      is the 32p-unweighted share — the unweighted pack slots onto the
+      curve. Readout per (point, variant, seed): test all-days Sharpe of the
+      BEST and FINAL checkpoints, final-epoch diff = mean(final)-mean(best),
+      short_frac of both, mean |a|. 50 sweep runs + 5-seed anchors.
+    - RESULTS (pack means; test 2021-12-31 clip; diff = final - best):
+        point (w_m, fam bh/mom/mean/rand)   short_frac(BEST)  short_frac(FINAL)  diff
+        w=0.25 (0.25/0.25/0.25/0.25) =d_cmp  0.000            0.011              +0.033 (PASS)
+        w=0.40 (0.20/0.20/0.40/0.20)         0.001            0.063              +0.029 (PASS)
+        w=0.55 (0.15/0.15/0.55/0.15)         0.056            0.280              -0.062 (FAIL)
+        w=0.625 unweighted (d_32p)           0.230            0.357              -0.087 (FAIL)
+        w=0.70 (0.10/0.10/0.70/0.10)         0.182            0.536              -0.163 (FAIL)
+        w=0.85 (0.05/0.05/0.85/0.05)         0.414            0.607              -0.183 (FAIL)
+        (D-minus-fuzzy numbers; D moves in lockstep — flip between w=0.40
+        and w=0.55 for both: D diff +0.013 -> -0.091)
+      MECHANISM METRICS (n=65, d_cmp duplicate excluded):
+        corr(final-epoch diff, short_frac) = -0.878  (short_frac explains
+        ~77% of the diff variance)
+        corr(final-epoch diff, w_m)         = -0.788
+        partial corr(diff | w_m removed, short_frac) = -0.209 -> short_frac
+        carries signal BEYOND the monotone w_m trend
+        short-frac bins: 0% diff +0.024; 0-3% +0.052; 3-10% +0.021 (ALL
+        PASS); 10-25% -0.042; >25% -0.101 (FAIL, worsening)
+    - READOUT — THE INSTABILITY IS THE SHORT-SIDE MASS, NOT COMPOSITION
+      DISTANCE. Two facts separate the candidates:
+      (1) w=0.40 is the MOST composition-distance-far point among the
+      PASSING set (bh/momentum/random all cut from 0.25 to 0.20, mean 0.40)
+      yet still PASSES with diff +0.013/+0.029 — the pass/fail flip does
+      NOT sit at a "distance from old-4p" boundary;
+      (2) the flip sits exactly where the FINAL checkpoint's short-taking
+      jumps through the 10-30% band: FINAL short_frac goes 0.6% (w=0.25)
+      -> 6% (w=0.40, still pass) -> 28% (w=0.55, FAIL). Instability appears
+      when the AWR target's fitted support turns strongly short-taking, and
+      scales with how far short_frac climbs. old_4p (same family weights as
+      comp-matched, short_frac 0.6-3%) is stable at +0.007, consistent with
+      the low-short side of the curve.
+      MECHANICAL STORY: as the contrarian family's sampling weight crosses
+      ~0.5, the advantage-weighted mean action per day tips negative on
+      non-bull days, the actor keeps drifting toward short mass at the
+      FINAL epochs (BEST-ckpt short_frac stays low — best-val selection
+      catches early low-short epochs — while FINAL short_frac jumps 0.006 ->
+      0.28), and the optimizer is still moving where it should have
+      settled; that is the TACR-shaped failure mode D was built to avoid.
+      The w=0.40 point with a stable +0.029 diff proves the mechanism is
+      NOT merely "any divergence from the old mix."
+    - QUALIFYING NOTE on the comp-matched "0% short" claim (7.27.2): that
+      short_frac was the BEST-ckpt read; the FINAL checkpoints of d_cmp /
+      msw-0.25 carry micro-shorts (0.6-1.1% of days) and remain stable —
+      consistent with this section: short grain below ~10% is harmless (it
+      even reads slightly better on test, +0.045/+0.033 diffs).
+    - SUITE: pytest 78/78 (analysis-only this section; the sweep reuses the
+      7.27.2 DConfig.policy_weights plumbing, unchanged).
+    - ACTIONABILITY (noted, NOT run — no speculative designs): the boundary
+      being short-side mass suggests a short-suppression lever (e.g.
+      censoring short actions from the support, or short-frac regularization)
+      would rescue an IQL fit on large mixed datasets; a momentum-axis mirror
+      sweep (upweight momentum with mean held low, keeping short_frac ~0 at
+      high composition distance) is the clean orthogonal control to pin the
+      causality against the residual partial corr. Both are follow-up
+      candidates, out of scope tonight.
+
+------------------------------------------------------------------------------
+7.27.4 AWR TEMPERATURE β IS NOT THE BINDING CONSTRAINT (2026-08-31)
+------------------------------------------------------------------------------
+    - IDEA: β in AWR's exp(Q/β) controls the action distribution sharpness.
+      The 32p-collapse may arise from a β that is too high (too diffuse)
+      or too low (too peaked on a few high-advantage actions). Sweep β over
+      {0.5, 1.0, 1.5, 2.0, 3.0} on the 32-policy unweighted dataset to
+      test whether β is the binding constraint vs the data composition.
+    - PROTOCOL: 5 seeds × 5 β × both variants = 50 runs. Tag d_beta/{β}.
+      Default β=3.0 is the paper's AWR advantage temperature. β<3 →
+      sharper action distribution; β>3 → more diffuse.
+    - PRE-REGISTERED SUCCESS CRITERIA:
+        (1) Does any β achieve final-epoch PASS on 32p-unweighted?
+        (2) If so, does the corresponding β on comp-matched improve
+            Sharpe > 0.837?
+        (3) If no β stabilizes 32p, β is not the binding constraint.
+    - RESULTS (scripts/d_beta_sweep.py; analysis: scripts/d_beta_analysis.py):
+
+      ┌────────┬────────┬────────┬────────┬──────────┬──────────┐
+      │   β    │ shbest │ shfinal│  diff  │ sf_final │ absa_fin │
+      ├────────┼────────┼────────┼────────┼──────────┼──────────┤
+      │  0.5   │ 0.698  │ 0.624  │ -0.074 │  0.358   │  0.141   │
+      │  1.0   │ 0.701  │ 0.623  │ -0.078 │  0.363   │  0.140   │
+      │  1.5   │ 0.711  │ 0.612  │ -0.099 │  0.377   │  0.141   │
+      │  2.0   │ 0.709  │ 0.622  │ -0.087 │  0.364   │  0.141   │
+      │  3.0   │ 0.714  │ 0.626  │ -0.087 │  0.357   │  0.141   │
+      │d_32p   │ 0.714  │ 0.626  │ -0.087 │  0.357   │  0.141   │
+      └────────┴────────┴────────┴────────┴──────────┴──────────┘
+      (D-minus-fuzzy, pack means, 5 seeds. β=3.0 reproduces d_32p exactly.)
+
+    - FINDING: NO β achieves final-epoch PASS. All five β values produce
+      consistent negative diff (−0.074 to −0.099). The variation across β
+      is small (range 0.025) and does not correlate with outcome:
+        corr(diff, β) = -0.080 (essentially zero).
+      Meanwhile corr(diff, sf_final) = -0.838 — the same short-side-mass
+      mechanism from 7.27.3 remains the dominant driver. Changing β does not
+      meaningfully alter sf_final (all cluster at 35-38%) because the problem
+      is not the action distribution sharpness but the BEHAVIOR DATA MIX:
+      63% mean-reversion rows force shorts regardless of β.
+    - absa_final is flat at 0.140-0.141 across all β — the model's mean|a|
+      is determined by the data, not by the temperature.
+    - ANSWERS THE PRE-REGISTERED CRITERIA:
+        (1) PASS/FAIL: FAIL — no β stabilizes 32p-unweighted.
+        (2) N/A.
+        (3) β is NOT the binding constraint; data composition is.
+    - IMPLICATION: the 32p-collapse is irrecoverable by optimizer tuning.
+      The only known lever that stabilizes D at32p is composition capping
+      (w_m ≤ 0.40 keeps short_frac ≤ ~10%, per 7.27.3). For the 32-policy
+      unweighted dataset, either (a) apply composition-aware sampling (7.27.2
+      already proves this works) or (b) accept the 4-policy regime as
+      D's operating envelope.
+    - SUITE: pytest 78/78 (analysis-only; same policy_weights/plumbing as
+      7.27.2-7.27.3).
+
+------------------------------------------------------------------------------
+7.27.5 TARGET-NETWORK τ AND EXPECTILE τ ARE ALSO NOT BINDING (2026-08-31)
+------------------------------------------------------------------------------
+    - IDEA: two remaining IQL hyperparameters, both named "tau" in Model D:
+      the POLYAK target-network EMA rate (cfg.tau) and the EXPECTILE tau
+      (cfg.expectile). Sweep both on the 32-policy unweighted dataset to
+      test whether either stabilizes the collapse that β (7.27.4) could not.
+    - ADDED --tau CLI arg to src/models/d/train.py (only --expectile existed).
+    - GRID:
+        polyak    tau ∈ {0.001, 0.0025, 0.005, 0.01, 0.02}
+        expectile tau ∈ {0.5, 0.6, 0.7, 0.8, 0.9}
+      each × 5 seeds × both variants = 50 + 50 = 100 runs. Defaults:
+      polyak 0.005, expectile 0.7. Defaults reproduce d_32p exactly.
+    - PRE-REGISTERED SUCCESS CRITERIA:
+        (1) Does any τ (either family) achieve final-epoch PASS on
+            32p-unweighted?
+        (2) If so, does the corresponding τ on comp-matched improve
+            Sharpe > 0.837?
+        (3) If no τ stabilizes 32p, τ (like β) is not the binding
+            constraint.
+    - RESULTS (scripts/d_tau_sweep.py, d_tau_resume.py, d_tau_analysis.py;
+      100 runs split across two threads; 28 resume jobs after an 8h timeout):
+
+      ┌───────────────┬────────┬─────────┬────────┬────────┬─────────┐
+      │      τ        │ sh_best│ sh_final│  diff  │sf_final│absa_final│
+      ├───────────────┼────────┼─────────┼────────┼────────┼─────────┤
+      │ polyak/0.001  │ 0.7135 │ 0.6171  │ -0.096 │ 0.380  │  0.140  │
+      │ polyak/0.0025 │ 0.7141 │ 0.6126  │ -0.102 │ 0.375  │  0.141  │
+      │ polyak/0.005  │ 0.7136 │ 0.6262  │ -0.087 │ 0.357  │  0.141  │ (default)
+      │ polyak/0.01   │ 0.7318 │ 0.6321  │ -0.100 │ 0.366  │  0.139  │
+      │ polyak/0.02   │ 0.7103 │ 0.6254  │ -0.085 │ 0.362  │  0.139  │
+      │ expectile/0.5 │ 0.7089 │ 0.6159  │ -0.093 │ 0.374  │  0.142  │
+      │ expectile/0.6 │ 0.7088 │ 0.6277  │ -0.081 │ 0.368  │  0.141  │
+      │ expectile/0.7 │ 0.7136 │ 0.6262  │ -0.087 │ 0.357  │  0.141  │ (default)
+      │ expectile/0.8 │ 0.7118 │ 0.6258  │ -0.086 │ 0.361  │  0.141  │
+      │ expectile/0.9 │ 0.7114 │ 0.6097  │ -0.102 │ 0.380  │  0.139  │
+      │     d_32p     │ 0.7136 │ 0.6262  │ -0.087 │ 0.357  │  0.141  │
+      └───────────────┴────────┴─────────┴────────┴────────┴─────────┘
+      (D-minus-fuzzy, pack means, 5 seeds.)
+
+    - FINDING: NO τ (either family) achieves final-epoch PASS. All ten
+      settings give consistent negative diff, tightly clustered (−0.081 to
+      −0.102, range 0.021). Neither dimension correlates with outcome:
+        corr(diff, polyak)    = +0.078   (n=25, ~zero)
+        corr(diff, expectile) = -0.058   (n=25, ~zero)
+      while corr(diff, sf_final) = -0.823 (n=55) — the 7.27.3 short-side-mass
+      mechanism remains the sole structural driver. sf_final stays 36-38%
+      (full contrarian failure) across every τ setting; absa_final is locked
+      at 0.139-0.142 (data-driven exposure, not update-dynamics-driven).
+    - ANSWERS THE PRE-REGISTERED CRITERIA:
+        (1) FAIL — no τ stabilizes 32p-unweighted.
+        (2) N/A.
+        (3) τ (both families) is NOT the binding constraint; data
+            composition is.
+    - IMPLICATION: the 32p collapse is irrecoverable by ANY IQL update-
+      dynamics hyperparameter (β 7.27.4, polyak τ, expectile τ). The IQL
+      algorithm itself is not the failure; the behavior mix (63% mean-
+      reversion forcing contrarian shorts) is. The levers that DO hold are
+      structural: composition-aware sampling (7.27.2/7.27.3) or the 4-policy
+      regime. D's optimizer hyperparameters are at the IQL paper defaults and
+      remain so.
+    - SUITE: pytest 78/78 (analysis-only; --tau arg added to train.py).
+
+------------------------------------------------------------------------------
 7.23 KELLY-SIZED C+ VARIANT (2026-08-26)
 ------------------------------------------------------------------------------
     - IDEA (user): the C+ composite uses TACR's learned |a| for sizing, but
@@ -2284,8 +2744,177 @@ headline. The chain is the deliverable.
       magnitude, not a strict improvement.
     - C+ remains canonical (1.146, +0.296, 5/5).
 
+7.28 CSI300 / CHINA CROSS-ASSET EXTENSION (2026-09-04)
 ------------------------------------------------------------------------------
-FINAL VERDICT (2026-08-26)
+    - SCOPE (user): re-run the full pipeline and all four models on the CSI300
+      index (sh000300) instead of SPY, and evaluate whether the project's SPY
+      results transfer to a non-US market. Same protocol throughout: train <=
+      2018-12-31, val 2019-2020, test 2021-2024 (capped at SPLIT_TEST_END
+      2024-12-31), 5-seed pack, per-model exposure-matched EM control.
+    - DATA: CSI300 daily OHLCV from Sina via akshare
+      (scripts/download_csi300.py -> data/csi300_daily.csv, 2005-01-04 to
+      2026-09-03). East Money endpoints are blocked in this environment; Sina
+      works. Pre-2005 rows carry volume=0 (back-calculated) and are dropped.
+      The CHN pipeline (scripts/csi300_pipeline.py) builds the same artifacts
+      as SPY: 5,264 trading days, 165,956 transitions, 32 behavior policies,
+      regimes bull 2,589 / bear 2,294 / crisis 320 days, state dim 8.
+    - CHECKPOINT AUDIT (methodological note): the first CSI300 pass silently
+      reused SPY-era seed checkpoints (s1-s4 for TACR/D dated 2026-08-18..20;
+      DDR s{seed} dated 2026-08-17). All seed packs were DELETED and retrained
+      fresh on CSI300 before any number below was computed.
+    - CHINA MACRO SET (best-effort full set; user-approved): 6 features from
+      data/macro_cn/ (scripts/fetch_macro_cn.py; Sina/akshare, East Money
+      blocked): rs_500_1d (vs CSI500), rs_growth_1d (vs ChiNext), rs_ss50_1d
+      (vs SSE50), qvix_chg_1d/5d, qvix_level (50ETF implied-vol analog).
+      Skipped (NO reliable China proxy in this env): 10y CGB yield (spotty
+      history), USDCNY, credit spread, options skew, vol-term (no 3m-variant).
+      Module: src/data/macro_factors_cn.py.
+    - RESULTS (test 2021-2024, 5 seeds; data/csi300_model_comparison.csv):
+        model             Sharpe(model)  Sharpe(EM)   margin   wins vs EM
+        B (DDR naive)     +0.2616        -0.0176      +0.2792  5/5
+        B-vt (DDR vol)    +0.4129        +0.0402      +0.3727  5/5
+        C (TACR)          -0.5840        -0.5850      +0.0009  1/5
+        C+ (z-only)       -0.3637        -0.5850      +0.2212  5/5
+        C+ (z+macro)      -0.3486        -0.5358      +0.1872  4/5
+        D (fuzzy+IQL)     -0.2390        +0.0671      -0.3061  0/5
+        D-minus-fuzzy     -0.2385        +0.0553      -0.2938  0/5
+    - HEADLINE FINDINGS:
+        (1) DDR transfers cleanly: vol-targeted DDR is the best CSI300 model
+            (+0.41 Sharpe, 5/5 vs EM) with naive DDR close behind (+0.26, 5/5).
+            The SPY robustness verdict (DDR beats exposure-matched control) is
+            RECONFIRMED on a non-US market.
+        (2) C+ sign adds value over EM on CSI300 (margin +0.22, 5/5, z-only)
+            but the weak TACR magnitude base keeps the composite Sharpe below
+            zero. The hybrid's SIGN skill transfers; the transformer MAGNITUDE
+            does not.
+        (3) China macro does NOT improve the sign head on CSI300 (margin
+            +0.22 -> +0.19, wins 5/5 -> 4/5). The 7.18 SPY macro edge does not
+            transfer to a China proxy set. (Scoped: 6-feature best-effort set,
+            with tnx/usdcny/credit/skew unavailable.)
+        (4) D and TACR fail on CSI300 exactly as on SPY: D is worse than its
+            own EM (margin -0.31, 0/5; shorts lose), TACR has zero directional
+            signal (margin ~0.001, 1/5). D-minus-fuzzy is indistinguishable
+            (ablation delta 0.0005, far below noise floor) — the fuzzy layer
+            is null on CHN too.
+        (5) CRISIS CAVEAT carried over: only 15 test days — directionally
+            suggestive only, NOT a finding.
+    - ARTIFACTS: scripts/download_csi300.py, scripts/csi300_pipeline.py,
+      scripts/fetch_macro_cn.py, src/data/macro_factors_cn.py,
+      scripts/hybrid_sign_macro_cn.py, scripts/compile_csi300_comparison.py;
+      data/csi300_model_comparison.csv, data/macro_cn/, data/csi300_daily.csv.
+      Trained CSI300 checkpoints live in the normal per-seed checkpoint dirs.
+
+7.29 TRANSACTION COSTS — FORMULA FIX + NET-OF-COST SWEEP (2026-09-05)
+------------------------------------------------------------------------------
+    - PROMPT (user): "add trading cost into our models." The reviewer's
+      challenge: all EM margins / model selection used ZERO-cost Sharpe as
+      the yardstick; turnover was logged (TACR eval mean_turnover) but never
+      priced. Cost can change WHICH model wins, not just the size of the win;
+      C+'s "shorts ~6% of days, crisis-concentrated" edge is exactly where
+      spreads widen and slippage spikes.
+    - CODE VERIFICATION of the prior diagnosis (all four models share one
+      knob, uniformly 0.0; the formula was a holding tax):
+        * reward = a_t*ret_{t+1} - cost*|a_t| at src/data/behavior_policies.py
+          (drives the OFFLINE DATASET reward -> TACR and D critics at cost
+          bps from configs/data.yaml, set 0.0);
+        * DDR mirrors it in its own _strategy_returns (train.py) and
+          VolTargetBuffer (train.py / dsr.py), knob configs/ddr.yaml = 0.0;
+        * EM margins computed at zero cost on BOTH sides
+          (scripts/compile_csi300_comparison.py).
+    - FORMULA FIX (the diagnosis was right): |a_t| charges a per-day HOLDING
+      TAX on absolute position (fully-long B&H pays every day forever); a
+      real transaction cost is paid only when the position CHANGES:
+          cost_t = (bps/1e4) * |a_t - a_{t-1}|       a_{-1} = 0 (entry once)
+      Implemented everywhere (still 0 bps by default, so nothing moves):
+        * src/data/behavior_policies.py  reward = a*ret - cost*|a_t - a_{t-1}|
+        * src/models/ddr/train.py        _strategy_returns(..., prev_action)
+                                          carries last block's action (detached,
+                                          truncated-BPTT consistent)
+        * src/models/ddr/dsr.py          VolTargetBuffer charges the turnover
+          cost on the DEPLOYED (vol-scaled) actions |a'_t - a'_{t-1}|, carry
+          across calls
+        * config comments updated (data.yaml, ddr.yaml, ddr/config.py).
+    - RETRAIN WITH COST is NOT done here; this note prices cost ON THE
+      EXISTING CHECKPOINTS (the reviewer's "cheap this-week" step; the honest
+      rerun-that-changes-selection is a follow-up pending user go-ahead).
+    - NEW: scripts/cost_sweep.py -> data/cost_sweep.csv. Net-of-cost margins on
+      the CSI300 test pack, cost charged to BOTH the model and its own EM
+      control (EM rebalances only when |a| changes):
+          model_t = a_t*m_t   - bps/1e4 * |a_t - a_{t-1}|
+          em_t    = |a_t|*m_t - bps/1e4 * ||a_t| - |a_{t-1}||
+      Grid: bps in {0, 0.5, 1, 2, 5, 10} + crisis-x5 sets at 1 and 5 bps.
+    - RESULTS (CSI300 test, net margins; wins = model beats own net EM):
+        model             @0bps   @1bps   @5bps   @10bps   at 10bps wins
+        B (DDR-naive)     +0.279  +0.268  +0.222  +0.165   5/5
+        B-vt (DDR-volt)   +0.373  +0.359  +0.303  +0.234   4/5
+        C+ (z-only)       +0.221  +0.181  +0.018  -0.184   0/5
+        C+ (z+macro)      +0.187  +0.115  -0.176  -0.538   0/5
+        C (TACR)          +0.001  +0.001  +0.000  -0.000   0/5
+        D (fuzzy)         -0.306  -0.309  -0.321  -0.336   0/5
+        D-minus-fuzzy     -0.294  -0.297  -0.308  -0.322   0/5
+    - FINDINGS:
+        (1) The RANKING DOES NOT FLIP on CSI300: B-vt wins at EVERY cost
+            level (margin +0.37 at 0bps -> +0.23 at 10bps, still 4/5) — it
+            has the lowest turnover of the winners, so it is the most
+            cost-robust. Model B naive holds 5/5 at 10bps.
+        (2) C+'s claim is the vulnerable one, as the reviewer bet: its margin
+            HALVES by 1 bps and is gone by 5 bps (z-only) / 2-5 bps
+            (z+macro). The everyday turnover of the sign head — not the 15
+            crisis days — is what cost erases (the crisis-x5 boost barely
+            moves any number: cost cells have ~0 short-test weight).
+        (3) TACR standalone and D are untouched conclusions: already
+            negative-margin / failing, they only get worse with cost.
+        (4) Scoping honesty: this reprice uses FROZEN checkpoints trained at
+            zero cost. A policy trained WITH cost inside the objective would
+            re-learn to trade less and could shift ordering — that is the
+            methodologically honest follow-up (regenerate dataset reward with
+            bps>0 + retrain B/C/D, then re-run the sweep). Pending user goahead.
+    - Item: the sweep is read-only (never trains, never touches checkpoints).
+
+7.29.1 VOL-SCALED SENSITIVITY BAND (2026-09-05, addendum to 7.29)
+------------------------------------------------------------------------------
+    - PROMPT (user): frame the continuous cost model correctly — a vol-scaled
+      multiplier is NOT a prediction of what spreads were; it is a SENSITIVITY
+      ASSUMPTION. Run it as a robustness band across plausible k and ask "does
+      the ranking survive?", not "what did cost actually cost?".
+    - FORM (in scripts/cost_sweep.py, added to the grid):
+          cost_bps_t = base_bps * (1 + k * vol_z_t),   clamped to >= 0
+      vol_z_t = the models' OWN causal z_realized_vol_20d state feature (the
+      normalization they saw in training), joined by date; k in {0.5, 1.0,
+      2.0} x base bps in {0.5, 1.0, 2.0, 5.0}. At vol_z=+2 the multiplier is
+      2x-5x depending on k — the stress-widening band. k=0 collapses to the
+      flat grid (already in the sweep). Reported as an assumption band, NOT
+      a calibrated cost model.
+    - RESULTS (CSI300 test, net margins; cost to model AND its own EM;
+      margin range across all 12 vol-scaled cells / min wins):
+        B (DDR-naive)          +0.237 .. +0.277   (5/5 everywhere)
+        B-vt (DDR-voltarget)   +0.318 .. +0.369   (5/5 everywhere)
+        C+ (hybrid z-only)     +0.090 .. +0.218   (5/5 everywhere)
+        C+ (hybrid z+macro)    -0.057 .. +0.178   (0/5 at the steepest cells)
+        C (TACR)               ~+0.001            (1/5, unchanged)
+        D / D-minus-fuzzy      -0.318 .. -0.294   (0/5, unchanged)
+    - FINDINGS:
+        (1) The RANKING IS STABLE ACROSS THE WHOLE BAND: B-vt wins every one
+            of the 12 vol-scaled cells (5/5), B-naive never worse than second.
+            The flat-grid verdict (7.29 finding 1) holds under every plausible
+            cost-widening-with-vol assumption.
+        (2) k is NOT the dominant stress — BASE bps is. At a fixed base,
+            higher k slightly IMPROVES the positive-margin models (e.g. C+
+            z-only at 5bps: +0.090 at k=0.5 -> +0.185 at k=2.0), because the
+            (1 + k*vol_z) scaling redistributes cost AWAY from the calm days
+            where these strategies actually turn over and TOWARD high-vol
+            days. The continuous band brackets the flat-grid result from
+            both sides rather than widening it.
+        (3) C+ z-only survives the band (positive margin, 5/5) but only just
+            at the steep end (min +0.09 vs its +0.22 at zero cost); C+
+            z+macro dips negative in the steepest cells. Same qualitative
+            message as 7.29 finding 2: C+'s edge is the cost-sensitive slice.
+        (4) Framing note (user's point, adopted): the numbers are an
+            assumption band. To turn this into "what cost actually was" you'd
+            need quote/TAQ data (absent for both SPY and CSI300 here) — the
+            band is the honest ceiling on that claim.
+    - ARTIFACTS: scripts/cost_sweep.py (grid + band), data/cost_sweep.csv
+      (vol_k column added).
 ------------------------------------------------------------------------------
     - Model C+ is the project's best result: a hybrid that decouples TACR's
       two skills — Transformer LEVERAGE TIMING (|a| from fix_a_nr7) and a
@@ -2300,10 +2929,1113 @@ FINAL VERDICT (2026-08-26)
       focal-loss sign retraining (7.21) and SKEW sentiment (7.22) are
       closed nulls. Model D's fuzzy layer is null (7.9). Model B remains a
       strong baseline but not the best model.
+    - Model D's offline-stability claim is SCALED: it trains stably at a
+      4-policy mix and at 6.6x volume when the family composition is held
+      fixed, and collapses on the unweighted 32-policy pool (7.27.1). The
+      7.27.2 discriminator isolates the driver as composition, not volume;
+      7.27.3 then identifies the MECHANISM beneath it — the instability
+      tracks the fitted policy's short-side mass (short_frac), not distance
+      from the old mix: stable through ~10% short_frac, fails once
+      short-taking drives past ~10-30%. 7.27.4 closes the remaining
+      algorithmic lever: sweeping the AWR temperature β ∈ {0.5, 1.0, 1.5,
+      2.0, 3.0} produces zero correlation with outcome (r = -0.08); no β
+      stabilizes the 32p dataset. 7.27.5 closes the two remaining IQL
+      update-dynamics hyperparameters (polyak target-EMA τ and expectile τ)
+      — likewise ~zero correlation (r = +0.08 / -0.06), no τ stabilizes the
+      32p dataset. IQL's stability is a property of the short/long structure
+      of the behavior it must reproduce, not a property of the optimizer,
+      the optimizer's sample count, the policy distribution's sharpness, or
+      the target/value-update dynamics.
     - The deliverable, as ever, is the discipline: every headline number is
       decomposed to margins, every protocol bar is pre-registered, and the
       two Phase-2 failure modes (data contamination, reward hacking) were
       root-caused rather than papered over.
+    - CSI300 extension (7.28): DDR vol-targeted is the best CSI300 model
+      (+0.41 Sharpe, 5/5 vs EM) — the SPY DDR robustness verdict transfers;
+      the C+ SIGN transfers (margin +0.22, 5/5) but its TACR magnitude does
+      not; China macro does NOT help the sign head; TACR and D fail on CSI300
+      exactly as on SPY.
+    - Transaction costs (7.29): the reward formula was corrected from a
+      per-day holding tax cost*|a_t| to a true turnover cost
+      cost*|a_t - a_{t-1}| (all models share the knob, still 0 bps default;
+      so this is a code fix, not a result change). Net-of-cost repricing of
+      the frozen CSI300 checkpoints shows the ranking is STABLE — DDR
+      vol-targeted wins at every cost level (margin +0.37 @ 0bps -> +0.23 @
+      10bps, 4-5/5) and Model B naive holds 5/5 at 10bps — while C+'s sign
+margin halves by 1 bps and vanishes by 5-10 bps, exactly the fragile
+      slice the reviewer predicted (everyday sign-head turnover, not the 15
+      crisis days). Training with cost inside the objective (retrain) is the
+      still-open honest follow-up.
+
+    - Transaction costs, honest follow-up (7.29.2): the open thread from
+      7.29 is now closed �?" B, C, C+, and D were RETRAINED (all 5 seeds, all
+      variants, 1 bps inside the objective) and re-evaluated net-of-cost on
+      the full flat + vol-scaled band. Result: B-vt still wins every cost
+      cell (net margin +0.26 @ 0bps -> +0.16 @ 10bps, 4-5/5) and B-naive
+      takes the runner-up 5/5 across the whole band. C+'s SIGN head survives
+      1 bps ({+0.218 @ 0, +0.175 @ 1, +0.003 @ 5} z-only; z+macro similar);
+      the vol-scaled band confirms it holds vertically ({+0.079..+0.214,
+      5/5} z-only; {-.012..+0.235, 2/5} z+macro) �?" but NOT TACR itself:
+      TACR retrained under cost collapses its magnitude head to a
+      constant-|a| (test margin flat 0.000, val_mean_abs_action ~0.4-0.5),
+      and C+ is then a best-of-breed decollation spin, not a tradeable
+      magnitude. D stays dead ({-0.30..-0.32}, 0/5). Takeaways: (i) cost-
+      aware retraining does NOT reorder the pack �?" B-vt and B-naive lead at
+      every cost; (ii) absent chance, C+ cost-margin comes entirely from its
+      sign head, which is 1-thru-2 bps sustainable but collapses by 5 bps;
+      (iii) the reviewer's fragility claim is upheld for the TACR-magnitude
+      slice, while the sign slice and B are cost-robust. S/F fix: the
+      next_returns==buy_and_hold test now reads the authoritative manifest
+      cost and credits the first-day entry cost (a_-1=0), so the Phase-1
+      equivalence invariant holds at any bps.
+
+7.30 PROJECT REDIRECTION — RESEARCH AGENDA (2026-09-08, user)
+-------------------------------------------------------------------------------
+    - DIRECTION (user, explicit): stop "implement two papers"; the experiments
+      have exposed the load-bearing fact — the signal is NOT a transformer
+      learning the whole policy, but DECOUPLED sizing/timing vs DIRECTION.
+      Reframe the paper around: "Can epistemic uncertainty improve risk-aware
+      POSITION SIZING in an offline-RL trading system?" — reducing exposure
+      on unreliable decisions while PRESERVING high-confidence tail
+      opportunities (uncertainty != bad trade; the ~5.5% high-confidence
+      short tail is the whole C+ edge, and focal-loss proved it collapses if
+      you ship it in the wrong direction).
+    - PRIORITY (user): 1) 16-dim TACR state expansion (macro into the
+      transformer state) — test whether C failed from information poverty,
+      not Transformer-in-RL incapacity; 2) uncertainty diagnostics on C+
+      (does epistemic disagreement predict future error?); 3-5) conditional/
+      asymmetric/continuous uncertainty sizing, then multi-market
+      (SPY/CSI300/+1) frozen-method validation.
+    - DESIGN DB guards (read before any of this): uncertainty != bad trade
+      (7.21 focal-loss null); C+ asymmetry (edge is short-tail concentrated);
+      cost-robustness is now a SELECTION criterion, not just a caveat — C+
+      net margin collapses by 5 bps while B-vt survives to 10 (7.29/7.29.2);
+      the "four-model comparison intact" constraint governs the CANONICAL
+      pack — new experiments are SEPARATE pre-registered tracks with their
+      own checkpoint dirs/bars, per user decision (Q1 2026-09-08).
+    - DECISIONS (user, 2026-09-08): Exp 1 = NEW pre-registered experiment,
+      canonical C+ untouched; Exp 2 = 10-member bootstrap-logistic sign
+      ensemble, C-selected on val as-is; execution order = Exp 1 then Exp 2.
+
+7.30.1 EXP 1 PRE-REGISTRATION — 16-DIM TACR STATE (2026-09-08)
+-----------------------------------------------------------------------------
+    - QUESTION: TACR_{8} -> TACR_{16} — does giving the transformer the same
+      8 macro causal features the logistic sign head already receives (risk_on,
+      tnx_delta_1d/5d, vol_term, dxy_corr_20d, credit_1d, rs_qqq_1d, rs_iwm_1d)
+      recover C+'s directional edge inside the ACTOR itself (|a| and sign
+      jointly), or was the sign-only head's directional skill a property of
+      the linear decoupling, not of the information set?
+    - PROTOCOL BAR (pre-registered; the SPLIT is untouched):
+        * STATE: 16-dim = [8 SPY z] + [8 macro causal z] (zscore_causal,
+          expanding, >=60d). Dates restricted at LOAD TIME to finite-macro
+          rows (2007-05+; HYG inception) — mirrors the sign model's matched
+          dates. Val/test fall entirely inside 2007+, so no val/test loss.
+        * CHECKPOINT ROOT: src/models/tacr/checkpoints/tacr/macro16/s{seed}/
+          (own dir/bars; canonical checkpoints/tacr/s{seed}/ untouched).
+        * CONFIG FLAG: state_macro: true opt-in (default false keeps 8-dim);
+          all other hyperparams IDENTICAL to canonical fix_a_nr7
+          (u=20, embed 128, n_layer 4, alpha 0.9, critic_lr 1e-6, double_q
+          mean, balanced_families, 3k steps, 5 seeds [20260814,1,2,3,4]).
+        * BARS (one device per question, no p-hacking):
+          (a) Does the ACTOR alone (16-dim TACR, its action sign = direction)
+              produce positive Sharpe AND beat its own |a| EM control?
+              -> if yes, transformer CAN learn direction given the info set.
+          (b) Compare C+ [TACR_{8}|a|] x [16-feat sign] vs a hypothetical
+              C+16 [TACR_{16}|a|] x [16-feat sign]: does giving the
+              transformer's magnitude head the macro states change sizing
+              enough to matter net-of-cost?
+          (c) Cost-robustness of any margin gains (1 bps, matching 7.29.2).
+        * CONTROL: the 8-dim canonical is the reference; identical seeds and
+          eval roll. Interference with the four-model comparison is NONE by
+          construction (canonical checkpoints untouched, separate dirs).
+    - METHODS: config flag + load_tacr_data widening (state.shape[-1] feeds
+      actor/critic/action_model/payload automatically — no other wiring
+      change). Ensemble sign head for Exp 2 unchanged.
+
+7.31 dxy_corr_20d NaN-POISONING ARTIFACT — FOUND AND FIXED (2026-09-08)
+-----------------------------------------------------------------------------
+    - STATUS: INVALID as evidence. REASON (7.34): this entry's corrected-C+
+      re-pricing ran on CSI300 data substituted for SPY (data/processed was
+      CSI300 from 05-09) plus a tz-aware index bug in macro_factors that
+      zeroed 4 macro dims on true SPY. ALL numbers in this entry are
+      CSI300-with-US-macro artifacts. PRESERVED for audit trail; superseded
+      by 7.34 (TRUE SPY / CORRECTED PIPELINE).
+    - DISCOVERED (implementing Exp 1): ``dxy_corr_20d`` (trailing 20d corr of
+      SPY vs DXY) was NaN for 3177/5264 rows — not pre-inception, but a
+      CALENDAR-MISALIGNMENT artifact. SPY and DXY trade on different days; a
+      single missing DXY day inside the 20d window makes ``rolling(20).corr``
+      NaN for ~20 consecutive outputs (one bad day slides the poisoned
+      window). Net effect: this one feature silently dropped ~half the dates
+      for EVERY model using the 8-macro set — including the CANONICAL C+
+      sign model's ``ok_mac`` (its "matched 2007+" set was actually stripped
+      to ~1094 train / ~504 test dates, not 2007+).
+    - FIX (user approved, 2026-09-08): ``_rolling_corr_on_overlap`` computes
+      the correlation on the INTERSECTING SPY∩DXY calendar (drop rows where
+      either is missing, roll on the clean series, ffill back onto the full
+      calendar — strictly causal). dxy_corr_20d NaN 3177 -> 20 (leading
+      warm-up only). src/data/macro_factors.py.
+    - CONSEQUENCE (this is a protocol change to REFERENCED C+ results, not
+      just Exp 1): re-running the canonical C+ sign model (7.18 B) with the
+      fixed features changes it materially:
+          B sign head        test_acc  short_frac  margin_mean  wins  Sharpe
+          pre-fix (7.18)     0.5393    0.0637      +0.2962      5     1.146
+          post-fix           0.5588    0.4133      +2.0837      5     1.762
+      Day-accuracy 0.539 -> 0.559 is robust across C in [0.1,10] (test acc
+      0.5594-0.5606) — NOT a C-selection overfit (val-selection picks C=1/10
+      at 0.592, no sharp spike).
+    - BUT — pre-cost/internal-scrutiny, DO NOT yet trust the +2.08 as "C+ got
+      7x better". Diagnostics (s1): hybrid Sharpe 1.925 vs its own
+      always-long EM -0.247; margin>0 on only 208/859 test days (2022-23 bear
+      leg carried by 41% short exposure). CRITICAL: sign-head TURNOVER jumped
+      to mean|da|=0.711 (vs EM 0.018) — daily sign-flipping. Per the
+      net-of-cost selection criterion (7.29/7.29.2), the revised C+ is likely
+      FAR MORE cost-fragile than the settled 0.41/1.15 version. Must be
+      re-priced net-of-cost before it becomes the Exp 1 baseline.
+    - RESOLVED 2026-09-08 (user protocol, Option 1): corrected C+ FROZEN as
+      the Exp 1 baseline. scripts/hybrid_sign_cost_analysis.py re-prices it
+      net-of-cost on the shared turnover convention (model_ret =
+      a*m - (bps/1e4)*|da|, a_{-1}=0; EM on |d|a||), 5 seeds, C val-selected.
+          bps   model_sh  em_sh   net_margin  wins  max_dd   drag_bp/d
+          0.0    1.762  -0.322     +2.084      5   -0.072      0.000
+          0.5    1.704  -0.332     +2.037      5   -0.072      0.219
+          1.0    1.647  -0.343     +1.989      5   -0.073      0.439   <- PRIMARY
+          2.0    1.531  -0.364     +1.895      5   -0.075      0.878
+          5.0    1.183  -0.428     +1.611      5   -0.089      2.194
+         10.0    0.604  -0.534     +1.138      5   -0.134      4.388
+         20.0   -0.546  -0.747     +0.201      4   -0.275      8.776
+      VERDICT: corrected C+ is GENUINELY cost-robust at the 1-bps selection
+      standard (net margin +1.99, 5/5 wins, Sharpe 1.65). It is NOT a
+      high-turnover artifact: turnover ~0.44 daily / ~111x annualized; Sharpe
+      only degrades meaningfully above ~10 bps (20 bps kills it, model
+      Sharpe -0.55). Edge is BROAD, not recovered-date-concentrated: RECOVERED
+      (2505 d) margin +1.60 vs RETAINED (1790 d) margin +2.56, turnover
+      0.44/0.43, short_frac 0.43/0.39. The +0.30 -> +2.08 jump mostly reflects
+      the old poisoned set evaluating on a tiny (~504 d) misaligned test window.
+      KEEP old +0.296/1.15 as the pre-correction historical result.
+    - NOTE (2026-09-08): the scripted hybrid/cost table initially DISPLAYED a
+      flat model_sh (a display bug — the model_sh column was computed at zero
+      cost instead of the costed series). Fixed; margins/max_dd were already
+      costed correctly. Output: data/hybrid_sign_cost_analysis.csv.
+    - NEXT (Exp 1): 16-dim TACR must clear the corrected C+ at the SAME 1-bps
+      cost regime (net margin is the primary selection metric per user
+      protocol); evaluate both gross + net + turnover + DD identically.
+
+7.32 EXP 1 RESULT — 16-DIM TACR (macro state) (2026-09-08)
+-----------------------------------------------------------------------------
+    - STATUS: INVALID as evidence. REASON (7.34): macro16 training AND its
+      eval ran on CSI300 data substituted for SPY (data/processed was CSI300
+      from 05-09) with tz-broken macro features. Checkpoints macro16/s{seed}/
+      and data/macro16_eval.csv have been REPLACED by the 7.34 SPY retrain and
+      SPY eval. PRESERVED text below for audit trail only.
+    - RUN: scripts/macro16_run.py = canonical fix_a_nr7 recipe (dq-min +
+      uniform + no-balanced-families) + --state-macro + --tag macro16.
+      5 seeds [20260814,1,2,3,4]; checkpoints
+      src/models/tacr/checkpoints/tacr/macro16/s{seed}/tacr_best.pt.
+      best-val Sharpe per seed: 1.096 / 1.223 / 1.626 / 1.273 / 0.938
+      (mean ~1.23, vs fix_a_nr7 ~0.82 — val-like-strong, but val is NOT the
+      selection metric). Suite completed cleanly (only benign runpy warning).
+    - EVAL: scripts/macro16_eval.py — like-for-like with corrected C+
+      (scripts/hybrid_sign_cost_analysis.py): same corrected 16-feat logistic
+      sign head, same 5 seeds, SAME cost model (model_ret = a*m - (bps/1e4)*
+      |da|, a_{-1}=0; EM on |d|a||), 16-dim roll uses the 16-dim dataset
+      (data16) while Fb/sign stay on the canonical 8-dim frame.
+    - BAR (a) ACTOR-ONLY DIRECTION (16-dim TACR action sign = direction,
+      1 bps): actor-Sharpe -0.272 vs its |a| EM -0.266. -> FAIL (not
+      positive, does not beat EM). Same as canonical 8-dim (-0.01/-0.34).
+      Reading: the transformer actor STILL cannot learn direction even with
+      8 macro features IN its state — directional skill remains a property
+      of the LINEAR decoupled sign head, not the information set. Answers
+      7.30.1's core question in the NEGATIVE.
+    - BAR (b) C+16 [TACR_16|a|]x[sign] vs corrected C+ [TACR_8|a|]x[sign],
+      net margin (1 bps = PRIMARY):
+          arm   bps  model_sh  em_sh   net_margin  wins
+          C+16  0.0   1.917  -0.262    +2.179      5
+          C+16  1.0   1.801  -0.266    +2.068      5   <- PRIMARY
+          C+16  2.0   1.685  -0.271    +1.956      5
+          C+8   0.0   1.762  -0.322    +2.084      5
+          C+8   1.0   1.647  -0.343    +1.989      5
+          C+8   2.0   1.531  -0.364    +1.895      5
+      C+16 WINS the 1-bps selection metric (+2.068 vs +1.989, margin gap
+      survives 0..2 bps). Modest but cost-robust sizing gain from the macro
+      magnitude head.
+    - BAR (c) COST: C+16 turnover 0.744 daily / 188x annualized (vs C+8
+      0.439 / 111x) — meaningfully higher, yet net margin still holds at 1-2
+      bps (raw Sharpe 1.80 > 1.65 compensates). C+16 is the more
+      cost-fragile at extreme bps; within the selection regime it holds.
+    - HEADLINE: (1) actor-only direction FAILS for 16-dim (Exp 1 bar a) — no
+      transformer-learned direction from the macro info set. (2) Widening the
+      MAGNITUDE head does beat the corrected C+ slightly net-of-cost at 1 bps
+      (+2.068 vs +1.989, 5/5), so Exp 1 bar b PASSES (modest). (3) Therefore
+      canonical C+ is NOT displaced; C+16 is a marginal, cost-robust upgrade
+      in sizing only, direction still supplied by the linear sign head.
+    - ARTIFACTS: scripts/macro16_run.py, scripts/macro16_eval.py,
+      data/macro16_eval.csv; checkpoints macro16/s{seed}/.
+
+7.33 EXP 1 DIAGNOSTICS — WHERE DOES THE EDGE COME FROM? (2026-09-08)
+-----------------------------------------------------------------------------
+    - STATUS: INVALID as evidence. REASON (7.34): ran on CSI300 data
+      substituted for SPY with tz-broken macro features; its per-day table
+      data/sign_diagnostics.csv was 859 CSI300 test days. That CSV has been
+      REPLACED by the 7.34 TRUE-SPY rerun (1005 test days). PRESERVED text
+      below for audit trail only. (Its QUALITATIVE verdict — uncertainty is
+      NULL, abandon uncertainty as main contribution — SURVIVES the data fix,
+      see 7.34 #3/#4 on SPY.)
+    - PROMPT (user): do NOT train another 5-seed model yet. Build a per-day
+      test table (date, 16-D feats, P(up), sign, C+ posn, TACR-8/16 |a|,
+      realized ret, vol) and answer five gating questions before any
+      uncertainty investment. (User's decision tree: does uncertainty predict
+      failure? No -> abandon uncertainty as the main contribution.)
+    - METHOD: scripts/sign_diagnostics.py. 10-member bootstrap L2-logistic
+      ensemble on the corrected 16-feat set (same as C+'s B sign head, each
+      member C-selected on val, TEST untouched); seed-mean TACR magnitudes;
+      net-of-cost via model_ret = a*m - (bps/1e4)|da|. Per-day table ->
+      data/sign_diagnostics.csv (859 test days, 2021-01-05..2024-12-31,
+      no NaNs).
+    - Q1 corrected-C+ direction after DXY fix (seed-mean |a|, 1bp):
+        C+8   Sharpe 1.308  margin 1.669
+        C+16  Sharpe 1.390  margin 1.651
+    - Q2 does TACR magnitude add value over simple P/vol sizing? (1bp;
+        margin scale-invariant, EM = own |a|):
+        sizing           Sharpe(1bp)  margin    turnover   ann
+        TACR-8 |a|            1.31     1.677     0.38      96x
+        TACR-16 |a|           1.39     1.654     0.66     165x
+        P |2P-1|              1.94     1.712     0.13      33x
+        P |2P-1|/vol          2.07     1.980     0.81     204x
+        RESULT: simple supervised probability sizing BEATS the transformer
+        magnitude head (plain |2P-1|: Sharpe 1.94 vs 1.31 TACR-8, with 3x
+        LOWER turnover 0.13 vs 0.38; P/vol highest Sharpe 2.07). The learned
+        magnitude adds nothing over P + vol. STRONG negative for the RL
+        magnitude contribution.
+    - Q3 does ensemble U_var predict sign errors? NO. err-rate by U tercile:
+        0.530 / 0.460 / 0.383 (INVERTED — higher U => FEWER errors);
+        corr(U, err) = -0.127.
+    - Q4 does U predict bad C+ P&L? NO (inverted). mean C+ P&L(1bp) by U
+        tercile: -0.0002 / +0.0004 / +0.0012; corr(U, P&L) = +0.089.
+    - Q5 long vs short asymmetry: SHORT days have LOWER err-rate (0.426 vs
+        0.476 long) and HIGHER mean P&L (+0.00081 vs +0.00027); corr(U,P&L)
+        short +0.172 vs long +0.033. Short-side is the better-informed leg,
+        consistent with the corrected C+'s recovered short exposure.
+    - VERDICT (user decision tree): uncertainty is NULL (worse — inverted) =>
+        DO NOT invest in uncertainty-aware sizing as the main contribution.
+        The transformer magnitude head is also NOT the source of edge (simple
+        P sizing beats it). Direction-of-edge lives in the SUPERVISED 16-feat
+        signal; sizing adds little over |2P-1|; vol-scaling helps.
+    - NEXT: (a) confirm this on CSI300 (Exp 2D macro_cn); (b) the decomposed
+        "Learning What vs How Much" story is the paper thesis; uncertainty
+        re-framed as a sizing/calibration variable only where Q3/Q4 positive
+        (they are not here). P/vol remains an un-tuned probe worth a proper
+        cost-aware study (turnover/DD) as the natural baseline TR vs C+.
+
+7.34 SPY RESTORE — 7.31-7.33 WERE CSI300-WITH-US-MACRO ARTIFACTS (2026-09-08)
+-----------------------------------------------------------------------------
+    - DISCOVERED (re-deriving 7.31-7.33): ``data/processed`` has been CSI300,
+      NOT SPY, since 05-09 (at-cost retrain window) — while all scripts call
+      ``load_tacr_data(20, ...)`` with no ``processed_dir`` override (default =
+      ``data/processed``). So the corrected-C+ freeze, macro16 training, its
+      eval, and the sign diagnostics ALL ran on CSI300 data with US macro
+      features (cross-market contamination).
+      - Evidence: close levels = CSI300 (982 / 2858 / 5076 / 3579 at
+        2005/2009/2015/2024); ``data/processed/offline_dataset.parquet`` =
+        165,956 transitions ending 2026-09-02 (CSI300) vs SPY backup 168,516
+        ending 2026-03-30 (SPY 2006-2026); 8-dim coverage 3152+487+969=4608 ==
+        CSI300 load (SPY maps to 4783 dates). The manifest config claims
+        ``universe SPY`` for BOTH because csi300_pipeline copies the SPY config
+        object into the manifest while loading CSI300 daily data — parquet
+        files, not the manifest, are the source of truth.
+    - USER DECISION (2026-09-08): RESTORE SPY, re-run everything.
+      - CSI300 preserved -> data/processed_csi300_backup/ (05-09 timestamps).
+      - SPY restored into data/processed/ from data/processed_spy_backup/
+        (03-09 timestamps). load_tacr_data now: 4783 dates, clipping 310,
+        market mean 3.98 bp/day. INR LOGS 7.31-7.33 ARE SUPERSEDED.
+    - SECOND BUG FOUND: ``macro_features`` NaN-poisoning on tz-aware SPY
+      features. SPY features index is ``datetime64[ns, America/New_York]``
+      (tz-aware); the old construction
+      ``pd.Series(spy_daily["close"].astype(float).pct_change(), index=naive)``
+      reindexes a tz-aware pct_change output by tz-naive labels -> ALL NaN.
+      On CSI300 (naive index) it silently worked, which is why 7.31-7.33 saw
+      "live" macro features. Net effect on TRUE SPY: risk_on_1d, dxy_corr_20d,
+      rs_qqq_1d, rs_iwm_1d were all-NaN -> zscore_causal zeroed them ->
+      the macro dims were dead in every SPY-era sign/magnitude analysis.
+    - FIXES applied (all three files):
+        src/data/macro_factors.py: spy_ret built from .to_numpy() onto the
+          naive index, then pct_change() (label-independent).
+        scripts/hybrid_sign_cost_analysis.py: same fix in the old-dxy
+          reconstruction helper AND the test-day indexer (pd.DatetimeIndex(
+          p["date"]).tz_localize(None)) — the roll's dates are tz-aware while
+          the frame is naive; without it get_indexer returned -1 -> ALL sign
+          preds came from row -1 (a spurious all-long collapse).
+        src/data/macro_factors_cn.py: same defensive to_numpy fix.
+      After fix on SPY: risk_on_1d 1 NaN, tnx_delta_1d 11, tnx_delta_5d 15,
+      vol_term 386, dxy_corr_20d 20, credit_1d 571, rs_qqq_1d 1, rs_iwm_1d 1
+      (5284/5344 finite).
+    - RE-RUN ON TRUE SPY (5 seeds, 1 bps = PRIMARY selection metric):
+      - CORRECTED C+ (FROZEN single-logistic sign head, hybrid_sign_macro B
+        definition) net margins NEGATIVE at every cost level:
+          bps:  0.0    0.5    1.0     2.0     5.0     10.0    20.0
+          marg: -0.034  -0.046  -0.058  -0.082  -0.153  -0.273  -0.510
+          wins: 1      1      1       0       0       0       0
+          short_frac 0.0756, turnover 0.147 daily / 37x annual.
+        On TRUE SPY the corrected C+ LOSES to EM at all costs — the +1.99 /
+        +2.068 Exp-1 result was CSI300-with-macro contamination.
+      - 16-feat logistic probe (SPY): test_acc 0.531-0.540 across C in
+        [0.01,10], test short 0.076-0.099; up-rate 54.3%. Sign model is at
+        base rate; no learned directional edge vs all-long.
+      - macro16 RETRAINED on SPY (5 seeds, same recipe): best-val Sharpe
+        (SPY) seed4 annealed early (0.77 @ e4; stale 15:02 log holds the
+        CSI300-era 1.096/1.223/1.626/1.273/0.938 numbers — the SPY-era val
+        numbers are NOT the ones in the log). Val is not the selection metric.
+      - macro16_eval on SPY (both C+16 and C+8): net margin negative at all
+        costs (C+16: -0.023/-0.036/-0.050/-0.077; C+8: -0.034/-0.046/-0.058/
+        -0.082). C+16 does NOT beat corrected C+ on SPY.
+      - sign_diagnostics on SPY (BOOTSTRAP-ENSEMBLE sign head, seed-mean |a|):
+          #1  C+8  margin(1bp) +0.228 ; C+16 +0.244   (EM +0.846/+0.799)
+          #2  P-sizing |2P-1| +0.118 ; P/vol +0.016
+          #3  corr(U_var, err) +0.012 -> NULL (no inversion here, unlike 7.33)
+          #4  corr(U_var, P&L)  +0.039 -> NULL
+          #5  LONG n=905 err 0.458 ; SHORT n=100 err 0.490
+    - RESOLUTION OF THE TWO CONTRADICTORY SPY RESULTS: the sign HEAD decides
+      the outcome, not the magnitude.
+          single logistic (frozen B)  margin(1bp) -0.052  (per-seed mean -0.058)
+          10-member bootstrap ensemble  margin(1bp) +0.228
+      Isolation: per-seed |a| with the single sign gives the SAME negative
+      margin as seed-mean |a| (per-seed margins -0.056/-0.063/-0.049/+0.021/
+      -0.144). The positive +0.23-0.24 comes from the ensemble-mean-proba sign,
+      which reaches an extra ~2.4pp of shorts (0.100 vs 0.076). Both sign-head
+      definitions are pre-registered in the repo (7.31 froze the single
+      logistic; 7.33/7.30.1 Exp 2 use the bootstrap ensemble). On TRUE SPY the
+      frozen single-logistic corrected C+ shows NO edge over EM at any cost.
+    - VERDICT: uncertainty remains NULL on SPY (Q3/Q4 corr ~0) => the
+      decision-tree conclusion (abandon uncertainty as the main contribution)
+      SURVIVES the data fix. But the corrected-C+ "beats EM at 1 bps" baseline
+      does NOT survive: the frozen sign definition loses to EM at all costs on
+      true SPY, and its Exp-1 "winner" (C+16 +2.068) was a contamination
+      artifact. The decomposed-policy thesis must be re-grounded on the TRUE
+      SPY numbers (both sign heads, per-day table data/sign_diagnostics.csv
+      now 1005 test days SPY).
+    - NEXT: (a) decide the baseline sign-head definition (frozen single
+      logistic vs bootstrap ensemble) on true SPY before any further
+      experiment; (b) run the frozen-protocol CSI300 transfer decomposition
+      (Exp 2) with the corrected data now in place (data/processed =
+      SPY canonical, data/processed_csi300_backup = CSI300 preserved); (c)
+      P/vol study (Exp 3) as the un-tuned strong baseline; (d) directional-
+      information ablation (Exp 4). Sync changed files to E:\New folder(2).
+
+7.35 SIGN-HEAD DECISION + ABLATION (user protocol, 2026-09-08)
+-----------------------------------------------------------------------------
+    - DECISION (user): do NOT pick between single-logistic and ensemble sign
+      heads by which one preserves the original C+ story (outcome-driven).
+        (1) FREEZE the single-logistic sign head as the CANONICAL C+ baseline
+            (it was the frozen 7.31 definition; the ensemble was only
+            introduced after inspecting the corrected SPY results).
+        (2) PROMOTE the 10-member bootstrap ensemble to a FORMAL SECONDARY
+            model; investigate WHY aggregation works (variance reduction?)
+            before using it anywhere as the sign model.
+        (3) The scientific framing is now: "The apparent C+ advantage was
+            caused by data contamination and implementation bugs; after
+            correcting the pipeline, the original single-model directional
+            edge disappears on true SPY." That is itself the important result.
+        (4) Uncertainty/disagreement stays OUT of sizing: P_ens = mean(P_1..
+            P_10); sizing |2P_ens-1| and |2P_ens-1|/vol. This is coherent
+            with Q3/Q4 being null (aggregation can improve the PROBABILITY
+            ESTIMATE while disagreement has zero predictive value for errors).
+        (5) PAUSE Exp 2/3/4 (no CSI300 yet). Only after the controlled
+            ablation: if aggregation is robust -> use the ensemble as the
+            sign model for CSI300 transfer, clearly labeled "ensemble
+            extension", keeping single-logistic C+ as canonical baseline.
+            If not robust -> abandon the C+ extension direction.
+    - CONTROLLED ABLATION (scripts/sign_head_ablation.py), same corrected SPY
+      protocol as the frozen cost re-pricing:
+          head                                  purpose
+          single logistic                       canonical C+ (frozen)
+          10-member bootstrap logistic ens.     current positive result
+          each individual bootstrap member      member quality / seed
+                                                 sensitivity (isolate)
+          ensemble on IDENTICAL training data   isolate ensembling: with a
+                                                 deterministic solver these
+                                                 members coincide with the
+                                                 single model, so ANY ensemble
+                                                 gain vs single is attributable
+                                                 to bootstrap resampling.
+      Per-member metrics on the test roll: Sharpe(0bp/1bp), margin(1bp),
+      accuracy, short frequency, turnover, P(up) distribution — then compare
+      the member distribution vs the ensemble average-probability curve.
+      Final block: |2P_ens-1| and |2P_ens-1|/vol20d sizing (no uncertainty in
+      the rule), margins vs EM.
+    - RESULTS (corrected TRUE-SPY protocol; 1005 test days, up-rate 0.537):
+      -- heads (1 bps net margin; ps = per-seed |a| frozen convention,
+         sm = seed-mean |a| diagnostics convention) --
+         single logistic (frozen canonical)    acc=0.5313  short=0.0756
+             margin(1bp) ps=-0.0581  sm=-0.0520   -> NEGATIVE
+         10-member bootstrap ensemble (mean P)  acc=0.5393  short=0.0995
+             margin(1bp) ps=+0.1751  sm=+0.2279   -> POSITIVE (seed 20260908)
+         10-member IDENTICAL-data ensemble (mean P)
+             == single logistic EXACTLY (margins identical, -0.0581/-0.0520)
+             => any ensemble gain is due to bootstrap RESAMPLING, not to
+             probability averaging per se (deterministic solver).
+      -- member-level isolation (single 10-member draw, sm margins):
+         member margins: [-0.725 -0.244 -0.079 -0.125 -0.259 -0.399,
+                          +0.438 +0.584 +0.009 +0.106] mean=-0.069
+         The +0.228 ensemble is DRAGGED by TWO members (+0.584, +0.438); the
+         other 8 are negative or ~zero. Ensemble <= best member.
+         => NOT evidence of broad variance reduction; the mean-proba sign is
+         a lucky-draw artifact of which bootstrap samples landed 2021-2024.
+      -- robustness (identical protocol, 10 independent RNG seeds):
+         margins(1bp,sm): +0.228 +0.068 -0.279 +0.021 -0.003 -0.239 -0.184
+                          -0.015 +0.111 +0.084
+         min -0.279 / max +0.228 / mean -0.021 / positive-frac 0.50
+         => the ensemble's apparent edge is NOT robust to bootstrap seeding.
+      -- no-uncertainty sizing with the ensemble probability (single seed):
+         |2P_ens-1|        Sharpe(1bp)=1.020  EM=0.902  margin=+0.118
+         |2P_ens-1|/vol20d Sharpe(1bp)=1.044  EM=1.028  margin=+0.016
+         (the +0.118 for |2P-1| is exactly the 7.34 diagnostics value — the
+         sizing edge is scale-invariant and does NOT depend on the sign-head
+         du jour; it is a property of the P(up) calibration itself.)
+    - DETERMINISTIC DATA AUDIT: the ablation re-verified data alignment.
+      market_returns[t] IS the forward next-day return (corr=1.0 with
+      close_pc[t+1]) — the correct reward target a*R_{t+1}. The confusing
+      "P(up)=0.0746" is 2*uprate-1 of the +-1 sign series (up-rate 0.537),
+      NOT a misalignment. No data bug here.
+    - VERDICT (resolves the 7.34 single-vs-ensemble conflict): the
+      single-logistic C+ is NEGATIVE on true SPY at all costs (frozen
+      canonical, -0.05 to -0.06 @1bp). The bootstrap ensemble does NOT
+      robustly restore a directional edge: its +0.228 was a single-seed
+      artifact; across 10 seeds the ensemble margin is ~0 (mean -0.02,
+      positive only half the time), driven by 1-2 lucky members. Therefore
+      on TRUE SPY the ORIGINAL single-model directional C+ edge does NOT
+      exist after the pipeline corrections. The only cost-robust feature
+      on SPY is the scale-invariant supervised sizing |2P-1| (+0.118 @1bp),
+      independent of which sign head produced P.
+    - IMPLICATION for the thesis: "RL magnitude adds no value; direction is
+      a supervised-sign property" is REINFORCED but in the weaker sense — on
+      true SPY even the sign does not reliably beat EM after costs, and the
+      ensemble can't be leaned on (unstable). The honest claim for the paper
+      is the NULL/REDUX: the apparent C+ edge was pipeline contamination;
+      after correction it does not reproduce on SPY. |2P-1|/vol-style sizing
+      remains the only robust candidate edge and needs the full P/vol study
+      (Exp 3) before any positive claim.
+    - NEXT (per user decision tree): ensemble does NOT survive the controlled
+      ablation => do NOT use the ensemble as the sign head for CSI300
+      transfer as a substitute for C+. Instead: (a) proceed to CSI300 (Exp 2)
+      ONLY under the FROZEN single-logistic C+ protocol to test transfer of
+      the (SPY-null) canonical sign, reporting honestly; (b) prioritize the
+      P/vol study (Exp 3) where the real candidate edge lives; (c) keep the
+      ensemble ablation as a methodological appendix (post-hoc sign-head
+      comparison, seed-sensitivity documented).
+
+### 7.36 Exp 3 - P/vol SIZING study on TRUE SPY (frozen canonical protocol)
+
+- SCOPE: after the sign-head ablation (7.35) demonstrated the directional sign
+      is exhausted on TRUE SPY (single C+ negative at all costs; bootstrap
+      ensemble positive only for a lucky seed), the surviving cost-robust
+      feature was the scale-invariant event-scaled sizing |2P-1| (+0.118 @1bp
+      in 7.34/7.35). This Exp rigorously tests that edge:
+        * PRIMARY: P(up) from the FROZEN CANONICAL single-logistic sign head
+          (C-selected on val, deterministic) - NOT the bootstrap ensemble.
+        * rules (each vs OWN EM = |a|, so margin is scale-invariant):
+              sign-only (|a|=1)          - does direction beat SPY forward ret?
+              |2P-1|                      - canonical confidence sizing
+              |2P-1| / vol20d             - + volatility normalization (run ?)
+              1/vol20d (no P)             - pure inverse-vol control
+              ensemble |2P-1| (ref)       - the 7.34/7.35 single-seed number
+        * cost grid 0/0.5/1/2/5/10 bps, net Sharpe + margin(1bp).
+        * ROBUSTNESS: exact same 10-RNG-seed bootstrap sweep as 7.35, but for
+          the SIZING margins (so we do NOT repeat the lucky-seed mistake).
+- ARTIFACTS: scripts/pvol_study.py (runnable), data/pvol_study.csv (1005-day
+      per-day test table: P_up_can, P_up_ens, sign_can, sign_ens, fP=|2P-1|,
+      fP_vol, vol20d, ret, ret_sign).
+- RESULTS (test = 2021-2024, n=1005, up-rate 0.537, mean fwd ret +5.13 bp/d):
+      sizing rule            turnover short%  | 1bp Sharpe  margin(1bp)
+      sign-only (|a|=1)         0.216    7.6  | 0.72        -0.060
+      |2P-1| (canonical)        0.048    7.6  | 0.86        +0.051
+      |2P-1| / vol20d           0.343    7.6  | 0.96        -0.025
+      1/vol20d (no P)           1.442    7.6  | 0.83        -0.190
+      ensemble |2P-1| (ref)     0.055   10.0  | 1.02        +0.118
+      (EM = own |a|; sign-only EM = buy-and-hold SPY fwd-return baseline.)
+      ROBUSTNESS sweep margins(1bp, canonical rule, 10 resampled P heads):
+        |2P-1|    [.118 .052 .022 .024 .123 .058 .062 .002 .035 .093]
+                   min=+0.002 max=+0.123 mean=+0.059 posfrac=1.00
+        |2P-1|/vol[.016 -.000 -.033 -.066 .020 -.024 -.025 -.075 -.036 .002]
+                   min=-0.075 max=+0.020 mean=-0.022 posfrac=0.30
+- FINDINGS:
+  * |2P-1| SIZING IS THE ONLY SUB-EDGE THAT IS ROBUST TO RESEEDING: positive
+    margin(1bp) in 10/10 bootstrap draws (mean +0.059, spread +0.002..+0.123).
+    ~+0.05 Sharpe pts net at 1bp with the frozen canonical P - modest but
+    sign-consistent, and NOT dependent on the ensemble or its RNG.
+  * The /vol variant is NOT robust (posfrac 0.30, mean -0.022) and the pure
+    inverse-volatility control is clearly negative (-0.190) - the 7.34/7.35
+    "|2P-1|/vol +0.016" does NOT survive: volatility normalization is at best
+    value-neutral, at worst harmful, in the cross-sectional daily setting. The
+    claim "volatility-aware sizing" is insufficient; only the CALIBRATED
+    confidence scaling |2P-1| adds value.
+  * Mechanistic attribution (canonical P): the +0.051 margin of signed |2P-1|
+    vs its own long-only EM comes ENTIRELY from the short leg (76 short days):
+    zeroing the short days gives margin +0.000; and it concentrates in the
+    top confidence tercile (fP>0.11: margin +0.150) while low-confidence
+    terciles are negative (-0.033, -0.144). corr(|2P-1|, |R|)=+0.027 (P does
+    NOT predict return magnitude); corr(P_up, |R|)=+0.004. So the sizing gain
+    is NOT vol timing; it is that shorting is rare (7.6% of days) and only
+    fires at high confidence where the conditional directional Sharpe is
+    positive (SHORT leg n=76 SR 0.82 vs LONG n=929 SR 0.95).
+  * Direction itself is confirmed exhausted on TRUE SPY: sign-only (|a|=1)
+    gives margin -0.060 vs buy-and-hold, consistent with 7.34/7.35 (single
+    logistic C+ negative at all costs).
+
+### 7.37 Exp 2 - CSI300 TRANSFER of the frozen canonical C+ protocol
+
+- SCOPE: transfer the FROZEN CANONICAL protocol (7.33/7.36) to CSI300 with the
+      SAME feature construction (8 price causal z + 8 macro causal z with the
+      CSI300 close as "instrument side" of the US cross-asset spreads), SAME
+      splits (train <=2018-12-31, val 2019-2020, test 2021-2024), SAME
+      single-logistic P(up) head C-selected on val, SAME sizing-vs-own-EM
+      margin, SAME cost grid, SAME 10-RNG-seed resampling robustness. Run on
+      the CSI300 Phase-1 artifacts (data/processed_csi300_backup/). Plus two
+      additional arms:
+        * OOS WINDOW CHECK - the SAME frozen head rolled onto the untouched
+          2025-2026 window (no retrain, up-rate 0.547) to test for
+          window-specific luck vs. a persistent edge.
+        * OOD DIAGNOSTIC - the SPY-TRAINED canonical P applied directly to the
+          CSI300 16-dim features WITHOUT retraining (a genuine cross-market
+          out-of-distribution probe; interpret P~0.5 only, z-statistics are
+          market-local).
+- PIPELINE NOTE: the canonical pvol/sign path reads data/processed (SPY) and
+      state_macro hardcodes the SPY features path, so the transfer runs on a
+      NEW self-contained script (scripts/csi300_transfer.py) that builds the
+      16-dim frame + forward market returns from a given processed dir's
+      features_regimes.parquet. CSI300 frame is naive-indexed (2005-01-04..
+      2026-07-17 after finite-feature filter, n=4700).
+- ARTIFACTS: scripts/csi300_transfer.py (runnable), data/csi300_transfer.csv
+      (867-row canonical-test-day table: P_up, sign, fP, fP_vol, vol20d, ret),
+      PROJECT_NOTES 7.37.
+- RESULTS (2021-2024 canonical test, n=867, up-rate 0.489, test-window drift
+      cumprod 0.887 = net DOWNTREND; 1 bps):
+      sizing rule          turnover  short% | 1bp Sharpe  margin(1bp)
+      sign-only (|a|=1)       0.758   37.9  | 1.31        +1.400
+      |2P-1| (canonical P)    0.113   37.9  | 1.91        +1.577
+      |2P-1| / vol20d         0.707   37.9  | 2.04        +1.865
+      1/vol20d (no P)         5.174   37.9  | 1.13        +1.561
+      Canonical P head test acc 0.541 (up-rate 0.489); corr(P[t], R[t+1])=
+      +0.157; corr(sign, R)=+0.093.
+      ROBUSTNESS (10 RNG seeds, resampled P heads):
+        |2P-1|    margins 1.58..1.94, mean +1.773, posfrac=1.00
+        |2P-1|/vol         1.92..2.23, mean +2.069, posfrac=1.00
+      OOS WINDOW (2025-2026, SAME head, n=329, up-rate 0.547, drift 1.213):
+        acc 0.581 | sign-only margin +1.571 | |2P-1| +2.059 | corr(P,R)
+        +0.231  => the CSI300 edge PERSISTS and even strengthens out-of-window
+        (well above the canonical-test numbers).
+      OOD DIAGNOSTIC (SPY head -> CSI300, no retrain):
+        acc 0.489 (= up-rate, pure chance) | sign-only margin -0.197 |
+        |2P-1| -0.398 | corr(P_ood, P_csi300)=+0.022  => zero-weight transfer
+        of the learned SPY head FAILS (predictions essentially uncorrelated);
+        but the PROTOCOL re-estimated on CSI300 finds a strong edge.
+- FINDINGS / INTERPRETATION:
+  * CSI300 is the OPPOSITE of SPY on every axis that mattered in 7.34-7.36:
+    -- direction itself is strongly positive (sign-only +1.40 @1bp, vs SPY -0.06);
+    -- |2P-1| sizing is strong AND robust (mean +1.77, 10/10 seeds, vs SPY +0.059);
+    -- |2P-1|/vol beats plain |2P-1| HERE (+1.865 vs +1.577; and +2.07 vs +1.77
+       across seeds), the exact opposite of SPY where vol-normalization DESTROYED
+       the margin (posfrac 0.30). The 7.36 claim "vol normalization is harmful"
+       does NOT transfer: on CSI300 conditional-vol scaling adds real value.
+  * Neither the strong CSI300 result nor the null SPY result is a window
+    artifact: SPY has two independent null windows, CSI300 has two independent
+    positive windows (2021-24 + 2025-26 with the same frozen head).
+  * The head C-selected on val has no test-touch; the robustness sweep resampled
+    the TRAINING bootstrap per seed with the SAME test window - the CSI300 result
+    is seed-stable under that protocol (posfrac 1.00 in both rules).
+  * OOD transfer is null because the SPY face is null (7.34-7.36): a head with
+    no directional signal on its home market cannot transfer one to a new market.
+    This is consistent, not a leak: the mechanism claim is "the PROTOCOL
+    transfers (feature build + C-selection + logistic) and finds a valid edge on
+    CSI300", NOT "SPY learned weights transfer".
+  * CAVEAT for the paper: the CSI300 margins (~1.4-2.1 Sharpe pts) are unusually
+    large for a daily logistic on index returns and sit in a high-volatility
+    Chinese-index regime (2021-24 downtrend, mean fwd ret -0.66 bp/day; 2025-26
+    rebound). Report honestly with the OOS/OOD arms and do NOT over-claim a
+    tradable edge: the point is that the supervised-sign + event-scaled sizing
+    protocol REPRODUCES (strongly) on a second market, whereas the RL magnitude
+    and uncertainty channels showed nothing on either market.
+
+-------------------------------------------------------------------------------
+### 7.38 INFERENCE + DIAGNOSTICS on the frozen-canonical sizing results (2026-09-09)
+------------------------------------------------------------------------------
+- SCOPE: statistical inference + CSI300 diagnostics for the paper (submission
+      prep: "statistical significance, not only Sharpe"). Reconstructs net
+      daily returns for every sizing rule DIRECTLY from the saved per-day test
+      tables (data/pvol_study.csv, data/csi300_transfer.csv) using the EXACT
+      recorded _net convention (model_ret = a*m - (bps/1e4)*|da|, a_-1=0; EM =
+      |a| with its own turnover cost; Sharpe annualized mean/std*sqrt(252) via
+      src/eval/regime_eval). Cross-validates every reconstructed Sharpe(1bp) /
+      margin(1bp) against the recorded 7.36/7.37 tables (PASSED, all within
+      tolerance). Adds Newey-West HAC t on the daily (model-EM) margin and
+      moving-block-bootstrap (l=21, also l=5 sensitivity) 95% CIs. CSI300:
+      by-year, max-drawdown, return distribution, regime breakdown.
+- INTEGRITY: reads ONLY the saved per-day tables; does NOT re-run training,
+      does NOT re-touch the already-reported-once 2025-2026 OOS windows.
+- ARTIFACTS: scripts/inference_diagnostics.py (runnable), data/
+      inference_diagnostics.csv (per rule: sharpe_1bp, em_sharpe_1bp,
+      margin_1bp, mean_daily_margin_bp, ann_margin_pct, nw_tstat, ci95_bp_lo/hi
+      [block bootstrap l=21], ci95_margin_lo/hi [paired-block Sharpe
+      difference]), data/csi300_yearly.csv, data/csi300_regime.csv.
+- SPY (test n=1005, up-rate 0.537), 1 bps:
+      rule                 Sh1bp Sh(EM) margin1 m_bp/d  t_NW  CI95 bp/d (l=21)
+      sign-only (|a|=1)     0.72   0.78  -0.060  -0.392  -0.20 [-3.93,+3.83]
+      |2P-1| (canonical)    0.86   0.81  +0.051  +0.035  +0.41 [-0.080,+0.239]
+      |2P-1| / vol20d       0.96   0.99  -0.025  -0.117  -0.30 [-0.53,+0.78]
+      1/vol20d (no P)       0.83   1.02  -0.190  -7.611  -0.86 [-23.4,+11.6]
+      ensemble |2P-1| (ref) 1.02   0.90  +0.118  +0.077  +0.76 [-0.075,+0.319]
+      IMPORTANT NUANCE: the |2P-1| +0.051 margin on SPY is NOT statistically
+      significant (t_NW 0.41; block-bootstrap CI on the daily margin [-0.08,
+      +0.24] bp/d includes 0). Same for ensemble +0.118 (t 0.76, CI includes
+      0). So on SPY the surviving claim is DIRECTION- and SEED-consistency
+      (10/10 reseeded margins positive, 7.36), NOT significance. Report as
+      "positive sign, consistent across reseeding, not individually
+      significant." sign-only, /vol, 1/vol: null/negative, no significance.
+- CSI300 (test n=867, up-rate 0.489), 1 bps:
+      rule                 Sh1bp Sh(EM) margin1 m_bp/d  t_NW  CI95 bp/d (l=21)
+      sign-only (|a|=1)     1.31  -0.09  +1.400  +10.555  +2.07 [-0.79,+22.7]
+      |2P-1| (canonical)    1.91   0.34  +1.577   +1.850  +2.80 [+0.509,+3.58]
+      |2P-1| / vol20d       2.04   0.17  +1.865  +10.171  +2.84 [+2.44,+19.4]
+      1/vol20d (no P)       1.13  -0.43  +1.561  +62.562  +2.09 [-3.41,+132]
+      SIGNIFICANCE: |2P-1| (t_NW 2.80) and |2P-1|/vol (2.84) have block-
+      bootstrap 95% CIs that EXCLUDE 0 (daily margin) - statistically
+      distinguishable from their own EM net of 1bp costs. sign-only (2.07) and
+      1/vol (2.09) have t_NW >2 but block-bootstrap CIs include 0 (heavy right
+      tail; high turnover). All four are robust in sign across the 10-seed
+      sweep (7.37). The primary |2P-1| CSI300 claim IS significant.
+- CSI300 BY-YEAR (margin@1bp; up-rate; drift):
+      2021 n=221 up 0.534 drift -3.7%  sign +1.04 |2P-1| +1.73 /vol +1.33
+      2022 n=216 up 0.472 drift -13.4% sign +4.42 |2P-1| +3.97 /vol +4.99
+      2023 n=215 up 0.465 drift -4.0%  sign -0.12 |2P-1| +0.69 /vol +0.62
+      2024 n=215 up 0.484 drift +10.8% sign +0.04 |2P-1| -0.03 /vol +0.11
+      => edge is NOT uniform across years: it concentrates in the 2021-2022
+      downtrend legs and is approx zero/negative in the 2024 rebound. This is
+      consistent with the SPY mechanism (short-leg events carry the margin)
+      and MUST be reported with the paper's CSI300 numbers or a reviewer will
+      find it. 2025-2026 OOS (reported once in 7.37) was a rebound window yet
+      still positive - so "downtrend only" is too strong; say "concentrated in
+      high-confidence-event years, not uniform, persists in untouched window."
+- CSI300 REGIME (margin@1bp; Phase-1 labels):
+      bull  n=318 up 0.503  sign +1.35 |2P-1| +1.07 /vol +0.69
+      bear  n=530 up 0.479  sign +1.50 |2P-1| +2.00 /vol +2.74
+      crisis n=19 up 0.526  sign  0.00 |2P-1|  0.00 /vol  0.00
+        (crisis: model NEVER shorts - all 19 days sign=+1 (mean P 0.607), so
+         model==EM exactly; margin 0 by construction. Honest, not a bug.)
+      => magnitude concentrates in bear votes; bull still positive; crisis has
+      no short activity at all.
+- CSI300 |2P-1| daily (model - EM) distribution: mean +1.85 bp/d, std 17.1,
+      skew +2.52, kurt +29.2, q05 -10.9 / q10 -3.3 / med 0.0 / q90 +10.0 /
+      q95 +27.0 => heavily right-tailed; median daily margin 0 (edge from rare
+      large short-side wins) - matches the "event-driven short leg" mechanism.
+- CSI300 max drawdown (model net @1bp cumulative path):
+      |2P-1| model -0.018 vs EM -0.060; /vol model -0.108 vs EM -0.206;
+      sign-only model -0.178 vs EM -0.328 => event-scaled sizing cuts DD
+      roughly 3x vs its own long-only EM on CSI300.
+- CROSS-VALIDATION: all 10 reconstructed Sharpe(1bp)/margin(1bp) rows match
+      the recorded 7.36/7.37 tables within tolerance (fail-loud exit code 1).
+      This independently confirms the recorded numbers are reproducible from
+      the retained per-day tables.
+- PAPER-SPOKEN SUMMARY for the reviewer-preparation work (User's checklist):
+  * SPY: statistical CIs do NOT establish significance for any sizing rule;
+    the |2P-1| claim is seed-robustness only. State that plainly.
+  * CSI300: |2P-1| and |2P-1|/vol ARE significant vs own EM @1bp (t_NW ~2.8,
+    bootstrapped daily-margin CI excludes 0).
+  * CSI300 edge is year-nonuniform (2021/22 strong, 2023 weak, 2024 ~0) and
+    regime-concentrated in bear; report the by-year table in the paper §4.x.
+  * No conventional-ML baseline was added (user decision: logistic P head
+    already is the conventional baseline).
+
+-----------------------------------------------------------------------------------------------
+### 7.39 Exp 4 - NIFTY TRANSFER of the frozen canonical C+ protocol (2026-09-10)
+-----------------------------------------------------------------------------------------------
+- SCOPE: third-market replication of 7.37 (Exp 2) on NIFTY 50, same frozen
+      canonical protocol: same 8+8 feature build (8 price causal z + 8 macro
+      causal z, market close as "instrument side" of the US cross-asset
+      spreads), same splits (train <=2018-12-31, val 2019-2020, test
+      2021-2024), same single-logistic P(up) C-selected on val, same
+      sizing-vs-own-EM margin @ 1bp primary, same cost grid, same 10-RNG-seed
+      resampled-P robustness, same OOS (2025-2026, untouched, no retrain),
+      same OOD arm (SPY-trained P -> NIFTY z-features, no retrain). Then the
+      SAME 7.38 inference gates (Newey-West HAC t, MBB l=21/l=5 CIs,
+      cross-validation vs the recorded table) extended to NIFTY.
+- DATA / COVERAGE (honest caveats, NOT protocol changes):
+  * Downloaded from Yahoo ^NSEI (scripts/download_nifty.py, mirror of the
+    keyless chart-API fetcher used for the macro series). NIFTY 50 is a price
+    index (no dividends), consistent with the naive-index convention used for
+    CSI300/SPY frames.
+  * Yahoo carries zero volume before ~2013-01-21, so the SAME volume>0 drop
+    rule as CSI300 yields NIFTY raw coverage 2013-01-21 .. 2026-09-09. The
+    test (2021-2024, n=881) and OOS (2025-2026) windows are FULLY covered;
+    the TRAINING window starts 2013 instead of 2005/2007 -> the NIFTY run has
+    ~6y of training (2013-2018) vs SPY/CSI300 ~11-13y. This is a real,
+    reportable asymmetry (the paper must state it), not an error.
+  * Feature frame ends 2026-07-17 (not 2026-09-09) because the VIX3M macro
+    series ends on that date -> the "2025-26 OOS window" arm is 2025-01-01 ..
+    2026-07-17 (~1.5y, n=332), the same clipping mechanism the CSI300 OOS
+    arm effectively had. Reported here once (no re-touch afterwards).
+- ARTIFACTS: scripts/download_nifty.py, scripts/nifty_pipeline.py,
+      scripts/nifty_transfer.py (all runnable); data/nifty_daily.csv,
+      data/processed_nifty_backup/ (features_regimes.parquet,
+      offline_dataset.parquet, dataset_manifest.json),
+      data/nifty_transfer.csv (881-row per-day test table),
+      data/nifty_yearly.csv, data/nifty_regime.csv. inference_diagnostics.py
+      extended to iterate all three markets (+ NIFTY cross-validation).
+- RESULTS (2021-2024 canonical test, n=881, up-rate 0.547, test-window drift
+      cumprod 1.801 = strong UPTREND, mean fwd ret +7.10 bp/day; 1 bps):
+      sizing rule            turnover short%  | 1bp Sharpe  margin(1bp)
+      sign-only (|a|=1)         0.873   37.0  | 3.37        +2.130
+      |2P-1| (canonical P)      0.217   37.0  | 4.40        +3.109
+      |2P-1| / vol20d           1.700   37.0  | 4.77        +3.099
+      1/vol20d (no P)           7.335   37.0  | 3.62        +2.108
+      Canonical P head test acc 0.608 (up-rate 0.547); corr(P[t], R[t+1])=
+      +0.313; corr(sign, R)=+0.204.
+      ROBUSTNESS (10 RNG seeds, resampled P heads):
+        |2P-1|    margins 3.01..3.25, mean +3.179, posfrac=1.00
+        |2P-1|/vol         3.05..3.30, mean +3.197, posfrac=1.00
+      OOS WINDOW (2025-01-01..2026-07-17, SAME head, n=332, up-rate 0.524):
+        acc 0.566 | sign-only margin +2.300 | |2P-1| +3.234 | corr(P,R)
+        +0.231  => the NIFTY edge PERSISTS out-of-window, above the
+        canonical-test numbers (same pattern as CSI300 7.37).
+      OOD DIAGNOSTIC (SPY head -> NIFTY, no retrain):
+        acc 0.541 (= up-rate, near chance) | sign-only margin -0.524 |
+        |2P-1| -0.002 | corr(P_ood, P_nifty)=+0.017  => weights-level transfer
+        of the SPY head FAILS again; only the PROTOCOL re-estimation carries
+        the edge (identical to the CSI300 OOD result: -0.197/-0.398, corr
+        +0.022).
+- STATISTICAL INFERENCE (same 7.38 gates; SPY/CSI300 rows unchanged for the
+      record):
+      NIFTY rule              Sh1bp Sh(EM) margin1 m_bp/d  t_NW  CI95 bp/d (l=21)
+      sign-only (|a|=1)       3.37   1.24  +2.130 +11.838  +2.93 [+3.42,+21.0]
+      |2P-1| (canonical)      4.40   1.29  +3.109  +4.402  +3.87 [+2.18,+6.94]
+      |2P-1| / vol20d         4.77   1.67  +3.099 +28.431  +4.53 [+15.7,+42.4]
+      1/vol20d (no P)         3.62   1.51  +2.108 +81.217  +2.98 [+24.1,+139]
+      SIGNIFICANCE: |2P-1| (t_NW 3.87), |2P-1|/vol (4.53) AND sign-only
+      (2.93) all have block-bootstrap 95% CIs EXCLUDING 0 - significant vs
+      own EM @1bp. 1/vol (2.98) hits t>2 but the CI includes 0 (heavy tail).
+      ON NIFTY the direction + confidence sizing are BOTH significant, unlike
+      CSI300 where only |2P-1| and |2P-1|/vol were significant.
+- NIFTY BY-YEAR (margin@1bp; up-rate; drift):
+      2021 n=220 up 0.545 drift +24.1% sign -0.03 |2P-1| +1.03 /vol +0.74
+      2022 n=223 up 0.511 drift  +5.9% sign +5.00 |2P-1| +5.31 /vol +4.80
+      2023 n=219 up 0.571 drift +17.7% sign +2.69 |2P-1| +3.28 /vol +3.40
+      2024 n=219 up 0.562 drift +16.4% sign +0.89 |2P-1| +2.90 /vol +2.90
+      => UNLIKE CSI300, the NIFTY edge is present in ALL FOUR years
+      (2021-2024), strongest in 2022. This is a major qualitative contrast to
+      report: on NIFTY the claim is NOT "concentrated in downtrend legs" - the
+      edge survives in up years too. NIFTY test window was a +80% uptrend, the
+      opposite regime to CSI300's 2021-24 downtrend, and the edge is LARGER.
+- NIFTY REGIME (margin@1bp; Phase-1 labels):
+      bull   n=618 up 0.557  sign +1.36 |2P-1| +2.39 /vol +2.37
+      bear   n=228 up 0.500  sign +4.68 |2P-1| +5.62 /vol +5.34
+      crisis n= 35 up 0.686  sign -2.48 |2P-1| -0.83 /vol -0.85
+      => bear is strongest again (same as CSI300), bull positive, BUT the
+      NIFTY crisis/surge regime is NEGATIVE - the model shorts and LOSES in
+      the 35 high-up-rate crisis days (up 0.686). This is the OPPOSITE of the
+      CSI300 crisis arm (where the model never shorted, margin exactly 0).
+      Must be reported with the regime table: "event-scaled sizing is
+      negative in NIFTY crisis/surge labels" - honest, and it prevents
+      over-claiming downside protection.
+- NIFTY |2P-1| daily (model - EM) distribution: mean +4.40 bp/d, std 30.2,
+      skew +5.67, kurt +77, q05 -12.7 / q10 -2.9 / med 0.0 / q90 +16.6 /
+      q95 +40.3 => same right-tailed event-driven shape as CSI300, but
+      fatter tail and bigger mean.
+- NIFTY max drawdown (model net @1bp cumulative path):
+      |2P-1| model -0.014 vs EM -0.069; /vol model -0.085 vs EM -0.321;
+      sign-only model -0.086 vs EM -0.138 => event-scaled sizing cuts DD 3-5x
+      vs its own long-only EM on NIFTY too.
+- CROSS-VALIDATION: all 10 reconstructed Sharpe(1bp)/margin(1bp) rows for all
+      THREE markets (incl. new NIFTY row) match the recorded 7.36/7.37/7.39
+      tables within tolerance (fail-loud exit code 1). PASSED.
+- FINDINGS / WHERE THIS LEAVES THE CLAIMS (paper implications):
+  * The |2P-1| confidence-scaled sizing claim now REPLICATES, and is
+    statistically significant, on 2 of 3 markets (CSI300, NIFTY); on SPY it
+    is seed-stable in sign but not significant (7.38). This STRENGTHENS the
+    paper's third result: "statistically significant exposure-scaled margin
+    on two of three markets; seed-robust on all three."
+  * NEW qualitative fact: NIFTY direction (sign-only) is ALSO significant
+    (t 2.93, CI excl 0), so the "direction is exhausted" claim from SPY does
+    NOT generalize - it was SPY-specific. The paper must say this: the
+    protocol's directional value is market-dependent (SPY null, CSI300
+    borderline, NIFTY significant).
+  * NIFTY edge is near-uniform across years and NOT driven by the downtrend
+    (test window was +80%); CSI300's year-nonuniformity does not repeat.
+    Together they say: "market-dependent in LEVEL, not in existence" - the
+    margin exists on both non-US markets, larger on NIFTY.
+  * Crisis/surge regime negative on NIFTY (unlike CSI300) - a real negative
+    finding that prevents over-claiming "downside protection." Report as-is;
+    the dominant driver is bear/vote concentration on both markets.
+  * Training-history asymmetry (NIFTY trains from 2013, not 2005) is a real
+    limitation that must appear in the paper (shorter history, same protocol,
+    LARGER edge - if anything strengthens the protocol-transfer claim but the
+    paper must not hide the difference).
+  * OOD (SPY->NIFTY) null again, consistent with CSI300: "learned weights do
+    not transfer; the PROTOCOL does."
+- TESTS: still 78/78 (no source-module changes; new scripts are standalone
+      mirrors). Mirror E:\New folder(2) synced (notes + data/scripts).
+
+### 7.40 PAPER UPDATE - NIFTY folded into paper/results.md (2026-09-10)
+-----------------------------------------------------------------------------------------------
+- SCOPE: integrate the 7.39 NIFTY record into the manuscript without changing
+      any measured numbers and without renaming/reordering existing section
+      anchors (discussion.md and related_work.md cite §4.4/4.6/4.7/4.8/4.9/4.10/
+      4.11).
+- CHANGES (paper/results.md, mirror synced):
+  * §4.7 retitled "Cross-market validation on CSI300 and NIFTY"; the 3-market
+      contrast table now carries NIFTY margin + t_NW columns
+      (sign-only +2.13/t2.93; |2P-1| +3.11/t3.87; /vol +3.10/t4.53).
+  * New NIFTY sub-block in §4.7 (after the CSI300 importance paragraph):
+      coverage caveat (train starts 2013, ~6y vs ~11-13y; frame ends
+      2026-07-17 via VIX3M), full 4-rule table with EM Sharpe + 1bp margin +
+      t_NW + MBB CI (l=21), 10/10 reseed robustness (mean +3.18/+3.20),
+      sign-only ALSO significant (t 2.93, CI excl 0) => "direction is
+      exhausted" is SPY-specific, by-year table (all four years positive,
+      largest 2022), by-regime (bear +5.62 strongest; crisis/surge NEGATIVE
+      -0.83, n=35, up 0.686 - genuine negative finding vs CSI300 crisis
+      degeneracy), daily-margin distribution (mean +4.40, std 30.2, skew +5.7,
+      kurt +77), max-DD improvement (|2P-1| -0.014 vs EM -0.069 ≈ 5x,
+      /vol -0.085 vs EM -0.321), verdict: significant, uniform across years,
+      uptrend, crisis-negative.
+  * §4.8 (OOW) extended: NIFTY arm reported once with CSI300 (acc 0.566,
+      sign-only +2.30, |2P-1| +3.23, corr +0.231; n=332, up 0.524; same
+      VIX3M end-date clip as CSI300's OOS arm).
+  * §4.9 (OOD) extended: SPY head -> NIFTY null is recorded (acc 0.541 ≈
+      up-rate 0.547; sign-only -0.52, |2P-1| -0.002, corr ≈ 0.02); blockquote
+      now says "second or third market".
+  * §4.10 summary table: added NIFTY significance rows; unified persistence /
+      uniformity / weight-transfer rows to both markets; central claim
+      rewritten to three-market statement (SPY seed-stable-not-significant,
+      CSI300 significant-and-regime-dependent, NIFTY significant-and-
+      near-uniform-but-crisis-negative; direction market-dependent: null/borderline/
+      significant).
+  * §4.5 distribution sentence: NIFTY same right-tailed shape at higher
+      amplitude, cross-referenced to §4.7.
+  * §4.11.3: input tables now include data/nifty_transfer.csv.
+- NO numbers changed for SPY (7.36) or CSI300 (7.37); all NIFTY figures match
+      7.39 / data/nifty_transfer.csv / nifty_yearly.csv / nifty_regime.csv /
+      inference_diagnostics.csv.
+- NEXT OPEN: §4.8 final sentence still refers to "the two reported-once
+      out-of-window arms" - still accurate (CSI300 + NIFTY). Packaging (c)
+      remains deferred per prior order; discussion.md/related_work.md still say
+      "two non-US markets" implicitly via §4.7/4.8/4.9 references - no text
+      needed beyond the results changes already made (re-check at packaging).
+- TESTS: 78/78 (results.md/prose only). Mirror synced.
+
+### 7.41 PAPER UPDATE - discussion.md + related_work.md aligned to 3 markets (2026-09-10)
+-----------------------------------------------------------------------------------------------
+- SCOPE: after folding NIFTY into results.md (7.40), update the two drafts that
+      referenced the old two-market framing; no numerical changes, no new
+      claims.
+- CHANGES (paper/discussion.md, paper/related_work.md, mirror synced):
+  * discussion.md 5.1: "six results" -> "seven results"; new item 5 (NIFTY
+      replication, significant, all four years, crisis-negative); renumbered
+      uncertainty (6) and protocol-transfer (7, now stripping "CSI300 features"
+      -> "CSI300 or NIFTY features").
+  * discussion.md 5.3: "The two markets differ in magnitude, not in kind" ->
+      "three markets differ in magnitude, significance, and regime profile..."
+      with a NIFTY bullet (near-uniform, crisis-negative) and an updated
+      closing statement ("second and third market; CSI300 regime-concentrated,
+      NIFTY near-uniform in level, crisis-negative").
+  * discussion.md 5.5: rewritten to wed CSI300 concentration with the NIFTY
+      counterpoint (uniform across years, uptrend, largest) -> explicit
+      rejection of portable year-by-year edge; market-dependent in level, not
+      in existence; both OOS arms reported (n=329 CSI300, n=332 NIFTY).
+  * discussion.md 5.6: "Universal volatility-normalized sizing" bullet now
+      says positive on CSI300 AND NIFTY but still not universal; notes
+      sign-only IS significant on NIFTY (market-dependence of directional
+      value); weight-transfer bullet -> SPY->CSI300/NIFTY.
+  * discussion.md 5.7 limitations: "Two markets only" -> "Three markets, but
+      one macro feature source" (SPY/CSI300/NIFTY share US-macro features);
+      "Unusually large CSI300 effect" -> "Unusually large non-US effects"
+      (+1.4..+1.9 CSI300, +3.1 NIFTY); "Regime concentration" -> "Regime
+      dependence" (CSI300 non-uniform across years; NIFTY uniform but
+      crisis/surge negative).
+  * discussion.md 5.8: cleaned the garbled "distinguishable... in neither
+      direction nor magnitude" sentence; now states magnitude adds nothing on
+      any of the three markets while directional value is null on SPY and
+      significant only on re-estimated (CSI300 regime-concentrated / NIFTY
+      near-uniform, crisis-negative).
+  * related_work.md 2.2: "(iv) validated on a two-second market" (typo) ->
+      "validated on two further markets (CSI300, NIFTY) and an untouched
+      out-of-window period."
+  * related_work.md 2.5: "(harmful on SPY, beneficial but regime-concentrated
+      on CSI300)" -> "(harmful on SPY, beneficial on CSI300 and NIFTY,
+      § 4.4/4.7)".
+- VERIFY: grep for remaining "second market" / "two markets" / "both markets"
+      -> results.md:322 (CSI300-specific phrase, correct), results.md:424/429
+      ("both markets" = CSI300+NIFTY in the OOW context, correct).
+- TESTS: 78/78 (prose-only changes). Mirror synced.
+
+### 8.0 REPRESENTATION LABORATORY - WHAT HIDDEN STATES KNOW (2026-09-15)
+-------------------------------------------------------------------------------
+- SCOPE: a new research thread that makes the LEARNED market-state
+      representation the explicit object of study instead of an invisible
+      step inside end-to-end RL. Four studies built on the frozen models
+      (DDR/B/TACR/C/D, seed 20260814) plus two new training labs (Idea 16
+      "objective lab", and the advisor's "representation x policy" design).
+      All probes are linear (L2 logistic / linear regression) fit on TRAIN
+      only and reported on TEST - the same no-lookahead protocol as the
+      models. All outputs under data/interpret/.
+- WHAT WAS BUILT (all reproducible):
+  * src/interpret/{targets,extract,probes}.py - shared probe targets
+      (direction_1/5/20, magnitude_1, vol_5/20, regime, reconstruction),
+      frozen-model hidden-state extraction (DDR rnn out[:,-1], TACR
+      state-token embeddings, D encode/h_last, C+ logistic scores, raw
+      windows), linear-probe + standardize/drop_nan utilities.
+  * scripts/probe_representations.py -> probe_results.csv / probe_table.csv.
+  * scripts/representation_rank.py -> representation_rank.csv (effective
+      participation-ratio + spectral-entropy rank, both NaN-safe).
+  * scripts/rep_sensitivity.py -> sensitivity_scores.csv, cka_similarity.csv
+      (temporal masks, feature zero/perm, +/-1sigma counterfactuals, CKA).
+  * src/models/objective_lab/ + scripts/objective_lab.py,
+      scripts/objective_lab_compare.py - IDEA 16 lab (below), outputs
+      objective_{probe_table,rank,cka,outcomes}.csv.
+  * scripts/temporal_receptive_field.py - block-mask receptive field + the
+      feature x time importance matrix, outputs
+      temporal_receptive_field.csv / temporal_feature_x_time.csv.
+  * src/models/rep_lab/ + scripts/rep_lab.py, rep_lab_measure.py - the
+      representation x policy lab, outputs rep_{measure,matrix,cka}.csv.
+- TESTS: 78/78 (1 new pytest run, nothing below touches existing tests).
+
+### 8.1 LINEAR-PROBE BATTERY + RANK ON THE FROZEN MODELS (SPY, test split)
+-------------------------------------------------------------------------------
+- Probe table (acc for clf / R2 for reg; baseline dir1 = 0.538):
+      rep        dir1   dir5   dir20  |R|1    vol5   vol20  regime  recon
+      raw 8      0.538  0.592  0.662  0.105  0.343  0.382  0.852   1.000
+      raw 20x8   0.529  0.553  0.654  0.010  0.212  0.377  0.883   1.000
+      DDR(GRU)   0.531  0.591  0.651  0.074  0.207  0.085  0.857   0.893
+      TACR       0.501  0.579  0.643  0.013  0.209  0.242  0.886   0.982
+      D          0.512  0.567  0.618 -0.052  0.134  0.149  0.909   0.945
+      C+ logit   0.538  0.586  0.661 -0.007 -0.048 -0.073  0.768   0.162
+  * Direction_1 is at/below majority chance everywhere (C+ == baseline
+      0.5383 exactly): the 8 canonical features contain NO linear 1-day
+      direction signal. Direction_5/20 are above baseline but <= raw.
+  * D is the best regime carrier (0.909); C+ (decision scores) predicts
+      almost nothing but regime (0.768) - its info content is the sign.
+  * RL representations (DDR/TACR/D) linearly DROP magnitude/vol precision
+      preserved by raw (vol20 0.382 -> 0.085-0.242).
+- Rank (effective participation ratio / spectral entropy; spectral = exp H(p)):
+      raw 8: 3.08 / 4.42 ; raw window: 7.60 / 17.24
+      DDR: 1.79 / 3.17 (top1 74%) ; TACR: 3.55 / 7.71 ; D: 2.62 / 5.29
+  * Reference guessed GRU~8, TACR~6; actual: GRU even more collapsed
+      (~3), TACR ~7.7. All < 8 effective dims - severe linear collapse in
+      every learned state (paper ref: spectral entropy of covariance eigs).
+
+### 8.2 SENSITIVITY + CKA (masking perturbation on frozen test rows, n=300)
+-------------------------------------------------------------------------------
+- Temporal masks (zero the state row L days back -> |da| action movement):
+      DDR: lag1 0.093, lag3 0.025, lag10 0.006 (dh_rel 0.27 -> 0.02): GRU
+           receptive field ~ last 3 days.
+      TACR: flat - masking ANY single day moves da ~0.0005, dh ~0.009 sigma.
+      D: flat (~0.005 da).
+- Feature importance (|da| whole-window zero): DDR volz 0.11 > boll 0.09 >
+      macd 0.088 > ret_1d 0.075 ; TACR macd/boll ~0.024 > rsi 0.021 >
+      volz 0.0065 > rv20 0.002.
+- +/-1sigma counterfactual (last-day): DDR asymmetric - rsi -1s 0.084 vs
+      +1s 0.047; volz +1s 0.129 vs -1s 0.088. TACR small and symmetric.
+- Linear CKA (test): DDR-TACR 0.80, DDR-D 0.76, TACR-D 0.83.
+
+### 8.3 IDEA 16 - OBJECTIVE LAB (trading representation vs reward representation)
+-------------------------------------------------------------------------------
+- DESIGN: four objectives share ONE 128-d single-layer GRU encoder over the
+      20x8 z-window (identical data/seed/splits/blocks): A predictive (MSE
+      to standardized next-day return), B DSR (DDR reward, vol-targeted),
+      C A2C (ac-sigma 0.15, ent 0.003), D masked self-supervised
+      reconstruction of today's features. Only the objective differs.
+- TRAIN (val): A -1.608 (mean-predictor level), B Sharpe 1.461, C -0.276,
+      D recon -0.363. TEST outcomes: A RMSE 104 bps corr +0.057; B Sharpe
+      +0.901; C -0.784; D recon 0.488 z.
+- CROSS-OBJECTIVE probes (test): all four ~ baseline on direction_1
+      (0.51-0.55). Differences in the per-arm probe table
+      (objective_probe_table.csv): actorcritic is the only arm with +|R|1
+      (0.072) and the best vol5 0.291/vol20 0.210; dsr drops magnitude/vol
+      (|R|1 -0.004, vol20 0.074) while keeping regime 0.860.
+- RANK (test): dsr is the LEAST collapsed (spectral 9.23 / eff 5.03);
+      predictive 3.64/2.35; actorcritic 3.57/2.31 (but scale 0.143 ->
+      near-constant h!); masked 7.72/3.91.
+- CKA: predictive-masked 0.952, predictive-AC 0.931, dsr-AC 0.792 (lowest),
+      dsr-predictive 0.862, dsr-masked 0.856, AC-masked 0.885.
+- VERDICT: at fixed architecture/capacity the reward function shapes the
+      TAIL, not the core - ~79-95% of the linear subspace is common across
+      objectives (direction + regime = the market-state core). The DSR
+      reward arm is most distinct, keeps the most linear dimensions, is the
+      only behaviorally strong arm (Sharpe 0.90), and is the one that drops
+      linear magnitude/vol. So: "reward representation" episodes are real
+      but bounded; the shared trading-state content dominates.
+- CAVEAT: C is a generic A2C proxy (not literally TACR); architecture is
+      shared by design so the objective is the clean comparison variable.
+
+### 8.4 TEMPORAL RECEPTIVE FIELD + FEATURE x TIME importance
+-------------------------------------------------------------------------------
+- Block-mask protocol from next_experiments.txt (I_k = E[(a - a^mask)^2],
+      freeze models, n=300 test days):
+      I_k:          last5d   prior5d   oldest10d   all20d
+      DDR           0.0355   0.0031    0.0008      0.0361
+      TACR          0.0023   0.0000    0.0001      0.0023
+      D             0.0787   0.0008    0.0037      0.0844
+  * The claim "80% of action variance from the last 3 days" is reproduced
+      and STRONGER: 93-98% of each model's masked response is in the last
+      5 days. But TACR's TOTAL I_k is 0.0023 vs DDR's 0.036 - TACR barely
+      moves when ANY context is destroyed, so it is not "last-3-days
+      driven", it is near-context-invariant. dh_rel keeps the long block
+      for D (0.30) but not DDR (0.08) / TACR (0.10).
+- feature x time matrix (single-cell masks, |da|): both models are lag-1
+      dominated: DDR lag1 boll 0.080 > volz 0.074 > macd 0.050 > rsi 0.046
+      > ret_1d 0.035, decaying ~15x by lag5, ~0.001 beyond; TACR lag1
+      boll 0.023 > macd 0.021 > rsi 0.016 > ret_5d 0.014, falling to
+      ~0.0003 by lag5.
+- NOT done (needs retraining): context scan u=10/20/40/60; Idea 5
+      temporal-leakage shuffles; Idea 13 full matrix is done, Idea 6 null
+      features not built.
+
+### 8.5 REPRESENTATION x POLICY LAB (advisor design: learn rep, then RL as
+       downstream test of representation usefulness)
+-------------------------------------------------------------------------------
+- DESIGN (Stage 1): three representation learners SHARE the same 128-d GRU
+      encoder, only the objective differs - auto (decode the whole 20x8
+      window from h_t), predictive (multi-task MSE to standardized
+      {R1, R5, |R1|, vol5} targets), contrastive (InfoNCE, feature-mask +
+      time-mask + z-noise views). Frozen encoders are measured, then
+      consumed by (Stage 2) one generic A2C head (same form as lab arm C)
+      and by a "Supervised" logistic direction policy on h_t.
+- TRAIN (val): auto -0.730, predictive -1.356 (best @ ep26), contrastive
+      -2.600 (InfoNCE); downstream A2C val Sharpe raw -0.224, auto +0.852,
+      predictive -0.454, contrastive +0.258.
+- MEASURE BEFORE TRADING (test), rep_measure.csv:
+      rep          dir1  |R|1   vol5   vol20  regime  recon   eff/spec rank
+      raw 160d     0.530 0.010  0.213  0.380  0.884   1.000   6.3/13.7
+      auto         0.516 0.029  0.195  0.061  0.872   0.959   4.8/7.1
+      predictive   0.537 -0.018 0.161  0.075  0.856   0.989   2.8/4.5
+      contrastive  0.518 0.050  0.050 -0.054  0.861   0.941   5.3/8.5
+  * No learned rep carries linear 1-day direction (all ~0.53 baseline) -
+      the features lack it, not the learner. All encoders COLLAPSE
+      long-horizon vol (vol20 0.38 -> <=0.08) while keeping regime.
+- REPRESENTATION x POLICY test Sharpe (rep_matrix.csv):
+      rep          Supervised  RL-A2C
+      raw 160d        0.394    -0.221
+      auto            0.635    +0.139
+      predictive      1.036    -0.323
+      contrastive     0.317    +0.076
+  * RL does NOT compensate for representation: the same A2C head is
+      negative/weak on EVERY frozen rep, while the supervised direction
+      policy is 2.6x better on the predictive rep than raw (0.394 -> 1.036).
+      Representation learning helps supervised decision-making, not RL.
+- CKA (test): raw-auto 0.946, raw-predictive 0.689 (most transform), raw-
+      contrastive 0.862; auto-contrastive 0.933, predictive-contrastive
+      0.755, auto-predictive 0.782.
+- CAVEATS: single untuned A2C head; Supervised sign-only, zero-cost, no
+      buy-and-hold baseline printed (add next); TCN/Transformer + the 4/8/
+      16-feature saturation axis + context scan all deferred.
+
+### 8.6 OPEN NEXT STEPS
+-------------------------------------------------------------------------------
+- Buy-and-hold + |2P-1| baselines in rep_matrix; per-feature-dimension
+      saturation run (4/8/16 features) on the predictive encoder - the
+      "financial representation saturation" result.
+- Idea 5 temporal-leakage shuffles (retrain same model on regime-shuffled /
+      globally-shuffled sequences) to test temporal exploitation directly.
+- Idea 6 null-feature substitution (same-distribution shuffled / autocorrelated
+      / factor-matched nulls) for the temporal-information split.
+- Context scan u=10/20/40/60 (retraining) for TACR/D.
+- Tune the downstream RL column (annealed lr, entropy schedule, IQL bolt-on)
+      before drawing stronger "RL cannot compensate" claims.
 
 ------------------------------------------------------------------------------
 END OF NOTES
