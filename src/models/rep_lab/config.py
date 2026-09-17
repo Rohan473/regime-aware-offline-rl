@@ -63,6 +63,9 @@ class RepLabConfig:
     feature_cols: tuple[str, ...] | None = None
     tag: str = ""
 
+    # cross-market: process a different market's processed dir (None -> SPY)
+    processed_dir: Path | None = None
+
     checkpoint_dir: Path = ROOT_CKPT
 
     def feature_columns(self) -> tuple[str, ...]:

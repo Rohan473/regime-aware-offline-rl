@@ -1,10 +1,17 @@
-"""A 32-feature causal bank for the representation-scaling experiment.
+"""A 32-feature point-in-time-valid bank for the representation-scaling study.
 
 The project's canonical state is 8 technical features (see
 ``technical_factors.FEATURE_COLUMNS``). To study how much independent
 financial information a representation actually needs, this module builds a
-larger, STRICTLY CAUSAL bank and exposes NESTED subsets of size
-4 / 8 / 12 / 16 / 24 / 32 so the 8-point is exactly the canonical state.
+larger bank and exposes NESTED subsets of size 4 / 8 / 12 / 16 / 24 / 32 so
+the 8-point is exactly the canonical state.
+
+TEMPORAL VALIDITY, NOT CAUSAL DISCOVERY: every column is constructed from
+information available no later than the decision time t (trailing windows /
+close-based quantities only), and is z-scored with an expanding window that
+uses only data up to t. This establishes temporal availability / no
+look-ahead; it does NOT establish causality. The nested sets are controlled
+expansions of the observable state, not a causal feature-selection result.
 
 Groups (nested, order matters):
   4   core momentum+vol   ret_1d, ret_5d, ret_20d, realized_vol_20d
@@ -16,12 +23,12 @@ Groups (nested, order matters):
   32  + 8 structure/macro + volume_z_5d/60d, ma_ratio_5_20/20_60,
                             price_vs_ma_20/60, sentiment_skew, drawdown_60d
 
-Every column uses only data up to and including day t. The canonical 8 are
-read straight from the processed frame (so the 8-point is bit-identical to
-the production state); the other 24 are recomputed here from close/volume +
-the macro parquet with the same formulas. ``causal_zscore`` then applies the
-project's expanding z-score (min_periods=60) to ALL 32 uniformly, so every
-feature is on the same scale regardless of subset size.
+The canonical 8 are read straight from the processed frame (so the 8-point is
+bit-identical to the production state); the other 24 are recomputed here from
+close/volume + the macro parquet with the same formulas. ``causal_zscore``
+("causal" here means no look-ahead: it applies the project's expanding
+z-score, min_periods=60, using only data up to t) is applied to ALL 32
+uniformly, so every feature is on the same scale regardless of subset size.
 """
 
 from __future__ import annotations

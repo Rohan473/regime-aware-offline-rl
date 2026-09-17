@@ -28,7 +28,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.models.rep_lab.config import OBJECTIVES, RepLabConfig
-from src.models.rep_lab.offline_rl import ALGOS, load_offline_rep, train_offline
+from src.models.rep_lab.offline_rl import (
+    ALGOS, baseline_sharpes, load_offline_rep, train_offline,
+)
 
 OUT_DIR = ROOT / "data" / "interpret"
 SEEDS = [20260814, 111, 222, 333, 444, 555, 666, 777, 888, 999]
@@ -54,6 +56,13 @@ def main() -> None:
         data = load_offline_rep(rep, cfg0)
         print(f"[data] {rep}: H={tuple(data.H.shape)} actions={tuple(data.actions.shape)} "
               f"dates={len(data.dates)}")
+        if rep == reps[0]:
+            for name, v in baseline_sharpes(data).items():
+                rows.append({"algo": name, "rep": "(baseline)", "seed": 0,
+                             "val_sharpe": float("nan"), "test_sharpe": v,
+                             "test_return": float("nan"), "test_maxdd": float("nan"),
+                             "test_turnover": float("nan")})
+                print(f"  [baseline] {name}: test Sharpe {v:.3f}")
         for algo in algos:
             for seed in seeds:
                 cfg = RepLabConfig()
@@ -65,7 +74,17 @@ def main() -> None:
                       f"test {m['test_sharpe']:.3f}")
 
     df = pd.DataFrame(rows)
-    df.to_csv(OUT_DIR / "rep_offline_rl.csv", index=False)
+    # merge into any existing results (so a single-algo re-run updates just its
+    # rows instead of wiping the other algorithms)
+    out_csv = OUT_DIR / "rep_offline_rl.csv"
+    if out_csv.exists():
+        old = pd.read_csv(out_csv)
+        key_new = set(zip(df["rep"], df["algo"]))
+        old = old[~old.apply(lambda r: (r["rep"], r["algo"]) in key_new, axis=1)]
+        if "(baseline)" in set(df["rep"]):
+            old = old[old["rep"] != "(baseline)"]
+        df = pd.concat([old, df], ignore_index=True)
+    df.to_csv(out_csv, index=False)
     summary = (df.groupby(["rep", "algo"])[["val_sharpe", "test_sharpe", "test_return",
                                             "test_maxdd", "test_turnover"]]
                .agg(["mean", "std"]))

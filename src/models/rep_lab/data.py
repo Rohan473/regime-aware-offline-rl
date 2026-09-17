@@ -30,8 +30,10 @@ def _bank_z() -> pd.DataFrame:
 
 
 def load_rep_data(cfg) -> DDRData:
-    """DDRData with windows over ``cfg.feature_cols`` (canonical 8 if None)."""
-    base = load_ddr_data(cfg.window)
+    """DDRData with windows over ``cfg.feature_cols`` (canonical 8 if None).
+
+    ``cfg.processed_dir`` selects the market (None -> SPY)."""
+    base = load_ddr_data(cfg.window, processed_dir=getattr(cfg, "processed_dir", None))
     cols = getattr(cfg, "feature_cols", None)
     if not cols:
         return base

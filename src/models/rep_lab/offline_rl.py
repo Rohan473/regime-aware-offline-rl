@@ -35,7 +35,7 @@ from src.models.objective_lab.train import _squashed_logp
 from src.models.rep_lab.config import RepLabConfig, tag_path
 from src.models.rep_lab.train import BEST, load_rep
 
-ALGOS = ("A2C", "IQL")
+ALGOS = ("BC", "A2C", "IQL", "CQL")
 
 
 # --------------------------------------------------------------------------
@@ -145,6 +145,52 @@ class A2CHead(nn.Module):
     def v(self, h): return self.value(h).squeeze(-1)
 
 
+class BCHead(nn.Module):
+    """Behavior cloning: deterministic policy regressed onto logged actions."""
+
+    def __init__(self, hidden: int, net: int = 128) -> None:
+        super().__init__()
+        self.policy = nn.Sequential(nn.Linear(hidden, net), nn.ReLU(), nn.Linear(net, 1))
+
+    def mu(self, h): return torch.tanh(self.policy(h).squeeze(-1))
+
+
+class CQLHead(nn.Module):
+    """Conservative Q-Learning (CQL(H)) with a deterministic actor.
+
+    Q(h,a) trained on the Bellman target r + gamma V(s'), where the soft value
+    V(s') = logsumexp_a Q_target(h',a) - log K over K sampled actions, plus the
+    conservative penalty alpha * (logsumexp_a Q(h,a) - Q(h,a_logged)). The
+    actor maximises Q. This is the standard continuous-action CQL(H) form."""
+
+    def __init__(self, hidden: int, net: int = 128, n_actions: int = 10,
+                 alpha: float = 1.0, bc_coef: float = 0.5,
+                 tau: float = 0.005) -> None:
+        super().__init__()
+        self.n_actions = n_actions
+        self.alpha = alpha
+        self.bc_coef = bc_coef  # TD3+BC-style actor regularizer (anti-saturation)
+        self.tau = tau
+        self.q_head = nn.Sequential(nn.Linear(hidden + 1, net), nn.ReLU(), nn.Linear(net, 1))
+        self.policy = nn.Sequential(nn.Linear(hidden, net), nn.ReLU(), nn.Linear(net, 1))
+        self._q_target = copy.deepcopy(self.q_head)
+        for p in self._q_target.parameters():
+            p.requires_grad_(False)
+
+    def q(self, h, a):
+        return self.q_head(torch.cat((h, a.unsqueeze(-1)), dim=-1)).squeeze(-1)
+
+    def q_t(self, h, a):
+        return self._q_target(torch.cat((h, a.unsqueeze(-1)), dim=-1)).squeeze(-1)
+
+    def mu(self, h): return torch.tanh(self.policy(h).squeeze(-1))
+
+    def polyak(self) -> None:
+        with torch.no_grad():
+            for p, tp in zip(self.q_head.parameters(), self._q_target.parameters()):
+                tp.data.copy_(self.tau * p.data + (1 - self.tau) * tp.data)
+
+
 class IQLHead(nn.Module):
     def __init__(self, hidden: int, net: int = 128, tau: float = 0.005) -> None:
         super().__init__()
@@ -194,6 +240,26 @@ def _batch(data: OfflineRepData, mask: np.ndarray, n: int, rng: np.random.Genera
             data.dones.numpy()[p, t])
 
 
+def baseline_sharpes(data: OfflineRepData) -> dict:
+    """Trivial decision baselines on the test split (no learning).
+
+    buy_and_hold      constant +1 position
+    constant_mean     the single mean logged action across all transitions
+    behavior_mean     the per-date mean logged action (action-frequency mix)
+    random            seeded uniform actions in [-1, 1]
+    """
+    te = data.split("test")
+    mr = data.market_returns[te].numpy()
+    acts = data.actions[:, te].numpy()
+    rng = np.random.default_rng(0)
+    return {
+        "buy_and_hold": float(sharpe_ratio(mr, 252)),
+        "constant_mean": float(sharpe_ratio(np.full_like(mr, acts.mean()) * mr, 252)),
+        "behavior_mean": float(sharpe_ratio(acts.mean(axis=0) * mr, 252)),
+        "random": float(sharpe_ratio(rng.uniform(-1, 1, mr.shape) * mr, 252)),
+    }
+
+
 def _eval_sharpe(head, data: OfflineRepData, mask: np.ndarray) -> float:
     with torch.no_grad():
         a = head.mu(data.H[mask]).numpy()
@@ -205,14 +271,14 @@ def _eval_sharpe(head, data: OfflineRepData, mask: np.ndarray) -> float:
 def train_offline(rep_name: str, algo: str, cfg: RepLabConfig,
                   data: OfflineRepData, epochs: int | None = None,
                   batch: int = 512) -> tuple[nn.Module, dict]:
-    """Train A2C or IQL on the frozen representation; return (head, metrics)."""
+    """Train BC / A2C / IQL / CQL on the frozen representation; (head, metrics)."""
     if algo not in ALGOS:
         raise ValueError(f"algo must be one of {ALGOS}")
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
     epochs = epochs or cfg.epochs
     hidden = data.H.shape[1]
-    head = A2CHead(hidden) if algo == "A2C" else IQLHead(hidden)
+    head = {"BC": BCHead, "A2C": A2CHead, "IQL": IQLHead, "CQL": CQLHead}[algo](hidden)
     opt = torch.optim.Adam(head.parameters(), lr=cfg.lr)
     tr_mask, va_mask, te_mask = (data.split("train"), data.split("val"), data.split("test"))
 
@@ -228,7 +294,9 @@ def train_offline(rep_name: str, algo: str, cfg: RepLabConfig,
             a = torch.tensor(a, dtype=torch.float32)
             r = torch.tensor(r, dtype=torch.float32)
             done = torch.tensor(done, dtype=torch.bool)
-            if algo == "A2C":
+            if algo == "BC":
+                loss = torch.mean((head.mu(h) - a) ** 2)
+            elif algo == "A2C":
                 with torch.no_grad():
                     v_next = head.v(h_next)
                 v_t = head.v(h)
@@ -240,7 +308,7 @@ def train_offline(rep_name: str, algo: str, cfg: RepLabConfig,
                 adv = (td - v_t).detach()
                 loss = (-torch.mean(logp * adv) - cfg.ent_coef * torch.mean(logp)
                         + torch.mean((v_t - td.detach()) ** 2))
-            else:
+            elif algo == "IQL":
                 with torch.no_grad():
                     q_target = head.q_t(h, a)
                     v_target = head.v_t(h_next)
@@ -251,10 +319,27 @@ def train_offline(rep_name: str, algo: str, cfg: RepLabConfig,
                     adv = head.q(h, a) - head.v(h)
                     w = torch.exp(beta * adv).clamp(max=100.0)
                 loss = loss + torch.mean(w * (head.mu(h) - a) ** 2)
+            else:  # CQL(H)
+                k = head.n_actions
+                rand_a = torch.rand(k * h.shape[0], 1, generator=None) * 2 - 1
+                rand_h = h.repeat(k, 1)
+                q_rand = head.q(rand_h, rand_a.squeeze(-1)).view(k, -1)
+                with torch.no_grad():
+                    rand_h2 = h_next.repeat(k, 1)
+                    q_next = head.q_t(rand_h2, rand_a.squeeze(-1)).view(k, -1)
+                    soft_v_next = torch.logsumexp(q_next, dim=0) - np.log(k)
+                    td = r + cfg.gamma * soft_v_next * (~done)
+                q_sa = head.q(h, a)
+                logsumexp_sa = torch.logsumexp(q_rand, dim=0) - np.log(k)
+                cons = torch.mean(logsumexp_sa - q_sa)
+                loss = torch.mean((q_sa - td) ** 2) + head.alpha * cons
+                # actor: maximise Q, regularised toward the logged action
+                loss = (loss - torch.mean(head.q(h, head.mu(h)))
+                        + head.bc_coef * torch.mean((head.mu(h) - a) ** 2))
             if not torch.isfinite(loss).item():
                 continue
             opt.zero_grad(); loss.backward(); opt.step()
-            if algo == "IQL":
+            if algo in ("IQL", "CQL"):
                 head.polyak()
 
         head.eval()

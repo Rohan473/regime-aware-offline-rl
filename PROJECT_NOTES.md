@@ -33,13 +33,21 @@ compression / stability / decision utility) and shows the axes dissociate:
 TACR is the least seed-stable (cross-seed CKA 0.66), the predictive rep has
 the lowest effective rank (2.77) yet the best supervised Sharpe (1.036), and
 directional information stays at chance as representation dimension grows.
-Section 8.8 STRESS-TESTS the dissociation: a 32-feature causal bank scaled
+Section 8.8 STRESS-TESTS the dissociation: a 32-feature point-in-time-valid bank scaled
 4->32, latent dims 4->128, 10 seeds, and a rep x {A2C, IQL} matrix show that
 no quality axis predicts utility (cross-seed CKA even correlates NEGATIVELY,
 -0.23), more features/dims do not add directional edge (dir1 AUC ~.50-.53
 everywhere) and can HURT (predictive Sharpe .856 at 16 features -> .481 at
 32), while the ALGORITHM dominates (IQL > A2C on every rep and far less
 rep-sensitive). Information is not the bottleneck; the decision layer is.
+Section 8.9 reviewer-hardening: adding BC and CQL shows BC (no Bellman) matches
+IQL and both are representation-insensitive while A2C is the fragile outlier
+(no learned policy beats buy-and-hold .784 on this split); GBDT/MLP probes keep
+direction at chance under ALL families but recover volatility nonlinearly from
+learned reps (linear .03 -> GBDT .26); SPY->CSI300 transfer is weak (SPY
+encoders match CSI-native, above random, but absolute utility ~0). Claim
+softened to: downstream optimization MATERIALLY MEDIATES the representation-
+utility relationship.
 
 **CSI300 / CHINA EXTENSION (2026-09-04, section 7.28):** the full pipeline and
 all four models were re-run on the CSI300 index (sh000300, Sina). DDR
@@ -4120,12 +4128,16 @@ The goal of this section is to PROVE and EXPLAIN section 8.7's dissociation
 more latent dimensions, more seeds, and a second decision algorithm.
 
 NEW CODE
-- src/data/feature_bank.py: a 32-feature CAUSAL bank with NESTED subsets
-  4/8/12/16/24/32; the 8-point is exactly the production state (canonical 8
-  read verbatim). Groups: core 4, canonical 8, +4/+8 macro, +8 multi-horizon
-  (ret_10d/60d, vol_5d/60d, rsi_6/28, macd_signal, bollinger_width), +8
-  structure (volume_z_5d/60d, ma_ratio_5_20/20_60, price_vs_ma_20/60,
-  sentiment_skew, drawdown_60d). All causal; expanding z-score (min_periods 60).
+- src/data/feature_bank.py: a 32-feature POINT-IN-TIME-VALID bank with NESTED
+  subsets 4/8/12/16/24/32; the 8-point is exactly the production state
+  (canonical 8 read verbatim). Groups: core 4, canonical 8, +4/+8 macro,
+  +8 multi-horizon (ret_10d/60d, vol_5d/60d, rsi_6/28, macd_signal,
+  bollinger_width), +8 structure (volume_z_5d/60d, ma_ratio_5_20/20_60,
+  price_vs_ma_20/60, sentiment_skew, drawdown_60d). Each column uses only
+  information available at or before t and is z-scored with an expanding
+  (no-look-ahead) window; this establishes temporal validity, NOT causal
+  discovery -- the nested sets are controlled expansions of the observable
+  state, not a causal feature-selection result.
 - src/models/rep_lab/data.py: load_rep_data over an arbitrary feature subset,
   keeping the SAME dates/next-returns/regimes/valid mask (comparability).
 - src/models/rep_lab/offline_rl.py: offline A2C and IQL heads on FROZEN h_t,
@@ -4199,6 +4211,81 @@ evaluation; 10 seeds but one head architecture per algorithm; the dim sweep's
 
 OUTPUTS (data/interpret/): rep_scaling.csv, rep_scaling_summary.csv,
 rep_offline_rl.csv, rep_offline_rl_summary.csv, rep_quality_utility_corr.csv.
+
+### 8.9 REVIEWER-HARDENING - BC + CQL, NONLINEAR PROBES, CROSS-MARKET, TERMINOLOGY (2026-09-15)
+-------------------------------------------------------------------------------
+Addressed the reviewer-risk items in priority order. The paper's central claim
+is now stated as: "downstream decision optimization materially MEDIATES the
+relationship between representation properties and trading utility" (not
+"representations do not matter" and not "we beat the market").
+
+NEW CODE
+- src/models/rep_lab/offline_rl.py: BCHead (policy MSE to logged actions) and
+  CQLHead (CQL(H): K=10 sampled actions, soft value = logsumexp - log K,
+  conservative penalty alpha=1.0, TD3+BC-style actor regularizer bc_coef=0.5).
+  ALGOS = BC / A2C / IQL / CQL. baseline_sharpes() adds trivial controls.
+- src/interpret/nonlinear.py + scripts/rep_nonlinear_probe.py: linear vs GBDT
+  (HistGradientBoosting) vs MLP probes, same no-lookahead protocol.
+- scripts/rep_cross_market.py + RepLabConfig.processed_dir: SPY -> CSI300
+  representation transfer (train encoder on A, freeze, evaluate on B).
+- TERMINOLOGY FIX (feature_bank.py): "32 causal features" -> "32
+  point-in-time-valid features constructed from information available no later
+  than t". Explicit: this establishes temporal availability / no look-ahead,
+  NOT causality; the nested sets are controlled expansions of the observable
+  state, not a causal feature-selection result.
+
+A. REP x {BC, A2C, IQL, CQL} (test Sharpe, mean (std) over 10 seeds)
+     rep          A2C           BC            CQL           IQL
+     raw          .362 (.210)   .682 (.168)   .574 (.120)   .559 (.163)
+     auto         .464 (.365)   .642 (.120)   .768 (.087)   .624 (.090)
+     predictive   .617 (.089)   .631 (.026)   .676 (.128)   .628 (.038)
+     contrastive  .527 (.389)   .641 (.098)   .709 (.087)   .621 (.101)
+   TRIVIAL BASELINES (test): buy_and_hold .784, constant_mean .784,
+     behavior_mean .725, random -.456.
+   - BC (NO Bellman optimization) matches/beats IQL on every representation:
+     sequential Bellman optimization is not necessary for this utility.
+   - IQL and BC are representation-INSENSITIVE (.56-.68); A2C is the outlier
+     (.36-.62, std up to .39). CQL is competitive (.57-.77) ONLY after the
+     actor is BC-regularized (an unregularized deterministic CQL actor
+     saturates to a constant long position).
+   - HONEST CAVEAT: no learned policy beats buy-and-hold (.784) on this test
+     split; the algorithm ordering sits at/below the trivial baseline. The
+     result is about representation x algorithm INTERACTION and stability, not
+     about beating the market.
+   - CONTROLS: identical frozen reps, identical transitions, identical
+     splits/costs/eval code, 10 seeds, val-selected checkpoint, no test tuning.
+
+B. NONLINEAR PROBES (mean over 10 seeds; direction = AUC, others = R2)
+     direction_1  linear .506-.521 | gbdt .503-.524 | mlp .499-.509  -> CHANCE
+                  under ALL families: direction is not recoverable by the
+                  tested probes (stronger than the linear-only claim).
+     magnitude_1  gbdt .023-.076 | mlp .022-.079 vs linear -.009..+.018
+                  -> weak nonlinear magnitude information.
+     vol_20       raw linear .380; learned reps linear .02-.05 but GBDT
+                  .25-.28 -> learned encoders DO encode volatility, just not
+                  LINEARLY (the 8.7 "vol collapse" reading was partly a
+                  linear-accessibility artifact).
+
+C. CROSS-MARKET TRANSFER (SPY -> CSI300, 3 seeds, CSI300 test)
+     source            dir1_auc  vol20_r2  regime_bacc  eff_rank  sup_sharpe
+     raw               .482      -.637     .796         9.22      -.400
+     csi_auto          .519      -.380     .734         6.43      -.239
+     csi_predictive    .509      -.193     .701         3.04       .083
+     csi_contrastive   .497      -.382     .863         5.38      -.342
+     spy_auto          .522      -.237     .853         5.51       .214
+     spy_predictive    .508      -.209     .807         3.60      -.199
+     spy_contrastive   .510      -.473     .858         5.40      -.263
+     random (encoder)  .521      -.284     .858         2.87      -.159
+   - Direction is at chance in CSI300 too; supervised utility is ~0 for all.
+   - SPY-frozen encoders do NOT collapse to random and are comparable to (auto
+     even above) CSI-native encoders -> WEAK evidence of representation
+     transfer; the absolute signal is too small to claim transfer strongly.
+   - CAVEATS: the random control is identical across objectives (same encoder
+     init) so it is a single control; CSI300 is near-unsolvable under this
+     protocol, so transfer is not separable from noise.
+
+OUTPUTS (data/interpret/): rep_offline_rl.csv / _summary.csv (now 4 algorithms
++ baselines), rep_nonlinear_probe.csv, rep_cross_market.csv.
 
 ------------------------------------------------------------------------------
 END OF NOTES

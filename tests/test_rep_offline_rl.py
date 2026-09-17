@@ -33,9 +33,11 @@ def test_offline_split_boundaries():
     assert (d.split("train") | d.split("val") | d.split("test")).all()
 
 
-def test_train_offline_a2c_and_iql_run():
+def test_train_offline_all_algos_run():
+    from src.models.rep_lab.offline_rl import ALGOS
+
     d = _synthetic_offline()
-    for algo in ("A2C", "IQL"):
+    for algo in ALGOS:
         cfg = RepLabConfig()
         cfg.seed = 1
         _, m = train_offline("raw", algo, cfg, d, epochs=2, batch=64)
