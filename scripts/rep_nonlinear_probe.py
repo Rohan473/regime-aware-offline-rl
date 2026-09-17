@@ -31,7 +31,9 @@ OUT_DIR = ROOT / "data" / "interpret"
 SEEDS = [20260814, 111, 222, 333, 444, 555, 666, 777, 888, 999]
 TARGETS = {"direction_1": ("clf", "fwd_dir_1"),
            "magnitude_1": ("reg", "abs_ret_1"),
-           "vol_20": ("reg", "fwd_vol_20")}
+           "vol_5": ("reg", "fwd_vol_5"),
+           "vol_20": ("reg", "fwd_vol_20"),
+           "drawdown_20": ("reg", "fwd_dd_20")}
 REPS = ["raw", *OBJECTIVES]
 
 
@@ -75,7 +77,13 @@ def main() -> None:
         print(f"[done] {rep_name}")
 
     df = pd.DataFrame(rows)
-    df.to_csv(OUT_DIR / "rep_nonlinear_probe.csv", index=False)
+    out_csv = OUT_DIR / "rep_nonlinear_probe.csv"
+    if out_csv.exists():  # merge so a partial target re-run keeps the others
+        old = pd.read_csv(out_csv)
+        keys = set(zip(df["rep"], df["target"], df["family"], df["seed"]))
+        old = old[~old.apply(lambda r: (r["rep"], r["target"], r["family"], r["seed"]) in keys, axis=1)]
+        df = pd.concat([old, df], ignore_index=True)
+    df.to_csv(out_csv, index=False)
 
     pd.set_option("display.width", 220)
     for target in targets:

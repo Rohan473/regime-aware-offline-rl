@@ -47,7 +47,13 @@ direction at chance under ALL families but recover volatility nonlinearly from
 learned reps (linear .03 -> GBDT .26); SPY->CSI300 transfer is weak (SPY
 encoders match CSI-native, above random, but absolute utility ~0). Claim
 softened to: downstream optimization MATERIALLY MEDIATES the representation-
-utility relationship.
+utility relationship. Section 8.10 Tier-3 diagnostics locate the mechanism: BC
+and IQL stay within ~0.05-0.10 of the behavior policy while A2C/CQL diverge
+0.2-1.0, so the "algorithm advantage" is largely "stay near behavior vs leave
+it"; the value of divergence is regime-dependent (BC/IQL win bear/crisis,
+A2C/CQL win bull), shows no monotonic latent-dimension trend, and all
+algorithms fail together in the 2022 bear year (no representation-driven
+temporal drift). Forward drawdown is unrecoverable by any probe.
 
 **CSI300 / CHINA EXTENSION (2026-09-04, section 7.28):** the full pipeline and
 all four models were re-run on the CSI300 index (sh000300, Sina). DDR
@@ -4286,6 +4292,82 @@ C. CROSS-MARKET TRANSFER (SPY -> CSI300, 3 seeds, CSI300 test)
 
 OUTPUTS (data/interpret/): rep_offline_rl.csv / _summary.csv (now 4 algorithms
 + baselines), rep_nonlinear_probe.csv, rep_cross_market.csv.
+
+### 8.10 TIER-3 DIAGNOSTICS - DIMENSION SENSITIVITY, DIVERGENCE, REGIME, EXTRAPOLATION (2026-09-15)
+-------------------------------------------------------------------------------
+Six Tier-3 items: (1) CQL/IQL sensitivity to representation dimension,
+(2) behavior-policy divergence, (3) action-distribution matching, (4)
+additional nonlinear probes, (5) regime-conditioned utility, (6) temporal
+extrapolation. New code: scripts/rep_rl_dim_sweep.py, scripts/rep_rl_diagnostics.py;
+rep_nonlinear_probe.py extended to vol_5 + drawdown_20.
+
+1. ALGORITHM x REPRESENTATION DIMENSION (test Sharpe, 3 head seeds)
+   predictive            contrastive
+   dim  A2C   BC   CQL   IQL   |  A2C   BC   CQL   IQL
+   4    .651  .329 .375  .697  |  .317  .409 .483  .763
+   8    .823  .644 .824  .631  |  .660  .399 .556  .428
+   16   .949  .613 .622  .758  |  .710  .488 .419  .595
+   32   .642  .533 .530  .596  |  .931  .553 .559  .518
+   64   .735  .593 .712  .541  |  .339  .558 .724  .584
+   128  .648  .628 .667  .626  |  .873  .600 .742  .617
+   - NO monotonic dimension effect for any algorithm. A2C is the most
+     dimension-sensitive (.32-.95), BC the most stable (.33-.64 / .40-.60),
+     IQL/CQL intermediate. The interaction is dimension-dependent and noisy --
+     there is no "right" latent size that helps all decision layers.
+
+2. BEHAVIOR-POLICY DIVERGENCE (mean |a_policy - a_behavior_mean|)
+     rep          A2C    BC     CQL    IQL
+     raw          .964   .104   .563   .098
+     auto         .534   .056   .798   .061
+     predictive   .197   .044   .715   .053
+     contrastive  .874   .063   .850   .060
+   - BC and IQL stay within ~0.05-0.10 of the behavior policy; A2C and CQL
+     move 0.2-1.0 away. THIS IS THE MECHANISM behind the 8.9 result: BC/IQL are
+     representation-insensitive because they nearly TRACK the behavior mix
+     (fixed ~.72 Sharpe); A2C/CQL deviate and their utility becomes
+     representation-dependent. The "algorithm advantage" is largely "stay near
+     behavior vs leave it".
+
+3. ACTION-DISTRIBUTION MATCHING (Jensen-Shannon divergence vs logged actions)
+     raw .396-.596 | auto .424-.595 | predictive .387-.533 | contrastive .431-.652
+   BC/IQL are consistently closer to the behavior action distribution than
+   A2C/CQL, mirroring the divergence result.
+
+4. EXTENDED NONLINEAR PROBES (mean over 10 seeds)
+     vol_5       gbdt .199-.293 vs linear .034-.213  -> nonlinear vol again
+     drawdown_20 gbdt -.16..-.19, linear -.03..-.34, mlp -.26..-.57
+                 -> forward 20d drawdown is NOT recoverable by ANY probe
+                 (a clean null: no representation encodes future drawdown).
+     (magnitude_1 and vol_20 already in 8.9.)
+
+5. REGIME-CONDITIONED UTILITY (predictive rep, test Sharpe, mean over seeds)
+     regime   A2C     BC      CQL    IQL
+     bear     .710   1.146   .402   1.146
+     bull     .773    .364   .811    .359
+     crisis   .463   2.872  1.369   3.179
+   - Strong algorithm x regime interaction: behavior-tracking policies (BC/IQL)
+     win in bear/crisis (defensive), deviation policies (A2C/CQL) win in bull.
+     The crisis gap is large (IQL 3.18 vs A2C 0.46).
+
+6. TEMPORAL EXTRAPOLATION (predictive rep, test Sharpe per calendar year)
+     year   A2C     BC      CQL    IQL
+     2021  1.670   2.068   1.783  1.991
+     2022   .028   -.147  -1.118  -.133
+     2023  1.062    .433   1.473   .398
+     2024  1.220   1.252   1.847  1.277
+   - No systematic forward drift: all algorithms succeed in 2021/2023/2024 and
+     fail TOGETHER in 2022 (the bear year). Temporal degradation is
+     regime-driven, not representation-driven.
+
+INTERPRETATION: the decision layer dominates not because IQL "optimises better"
+but because BC/IQL stay close to the behavior distribution while A2C/CQL
+diverge; the value of that divergence is regime- and representation-dependent
+and shows no clean dimension or time trend. This is consistent with the
+softened claim: downstream optimization MATERIALLY MEDIATES the representation-
+utility relationship.
+
+OUTPUTS (data/interpret/): rep_rl_dim_sweep.csv, rep_rl_diagnostics.csv,
+rep_nonlinear_probe.csv (now 5 targets).
 
 ------------------------------------------------------------------------------
 END OF NOTES
