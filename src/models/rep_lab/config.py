@@ -25,6 +25,12 @@ ROOT_CKPT = Path(__file__).resolve().parent / "checkpoints"
 PRED_TARGETS = ("r1", "r5", "abs1", "vol5")
 
 
+def _canonical_cols() -> tuple[str, ...]:
+    from src.models.ddr.data import Z_COLUMNS
+
+    return tuple(Z_COLUMNS)
+
+
 @dataclass
 class RepLabConfig:
     window: int = 20
@@ -51,8 +57,21 @@ class RepLabConfig:
     ent_coef: float = 0.003
     cost_bps: float = 0.0
 
+    # feature-scaling / latent-dimension sweeps: the causal feature subset fed
+    # to the encoder (None -> canonical 8) and a variant tag that keeps sweep
+    # checkpoints separate from the headline ones.
+    feature_cols: tuple[str, ...] | None = None
+    tag: str = ""
+
     checkpoint_dir: Path = ROOT_CKPT
+
+    def feature_columns(self) -> tuple[str, ...]:
+        return tuple(self.feature_cols) if self.feature_cols else _canonical_cols()
+
+    def n_features(self) -> int:
+        return len(self.feature_columns())
 
 
 def tag_path(cfg: RepLabConfig, objective: str, subdir: str = "reps") -> Path:
-    return cfg.checkpoint_dir / subdir / objective / f"s{cfg.seed}"
+    name = objective if not cfg.tag else f"{objective}_{cfg.tag}"
+    return cfg.checkpoint_dir / subdir / name / f"s{cfg.seed}"

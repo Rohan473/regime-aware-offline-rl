@@ -6,6 +6,7 @@ clipped to SPLIT_TEST_END), strictly causal or forward-looking as labelled:
 - ``fwd_ret_k`` / ``fwd_dir_k`` : forward k-day return / its sign (k=1,5,20)
 - ``abs_ret_1``   : next-day |return| (magnitude probe)
 - ``fwd_vol_k``   : realized vol over the NEXT k days (annualized, k=5,20)
+- ``fwd_dd_20``   : forward 20-day drawdown (min close_{t+1..t+20}/close_t - 1)
 - ``regime``      : Phase-1 regime label at t (bull/bear/crisis)
 - ``z_*``         : current-day causally z-scored features at t (for the
                     descriptive/reconstruction probe)
@@ -63,6 +64,11 @@ def build_targets(processed_dir: str | None = None) -> pd.DataFrame:
     for k in (5, 20):
         rev = ret.shift(-1).iloc[::-1].rolling(k).std().iloc[::-1]
         df[f"fwd_vol_{k}"] = rev * np.sqrt(252.0)
+
+    # forward drawdown over the next 20 days: min_{i=1..20}(close_{t+i})/close_t - 1
+    # (<= 0; the worst peak-to-trough excursion a holder starting at t would see)
+    roll_min = close.shift(-1).iloc[::-1].rolling(20).min().iloc[::-1]
+    df["fwd_dd_20"] = roll_min / close - 1.0
 
     naive = _naive(df.index)
     split = np.where(

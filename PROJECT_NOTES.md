@@ -27,7 +27,19 @@ shapes the tail: DSR keeps the most dims + the only behaviorally strong arm).
 The advisor's rep x policy design: three frozen representation learners
 (auto/predictive/contrastive) + downstream A2C -> the predictive rep raises
 the SUPERVISED direction policy Sharpe 0.394 -> 1.036 but RL-A2C is negative
-on every rep (RL cannot compensate for the representation).
+on every rep (RL cannot compensate for the representation). Section 8.7 adds
+a multidimensional representation-QUALITY SCORECARD (information /
+compression / stability / decision utility) and shows the axes dissociate:
+TACR is the least seed-stable (cross-seed CKA 0.66), the predictive rep has
+the lowest effective rank (2.77) yet the best supervised Sharpe (1.036), and
+directional information stays at chance as representation dimension grows.
+Section 8.8 STRESS-TESTS the dissociation: a 32-feature causal bank scaled
+4->32, latent dims 4->128, 10 seeds, and a rep x {A2C, IQL} matrix show that
+no quality axis predicts utility (cross-seed CKA even correlates NEGATIVELY,
+-0.23), more features/dims do not add directional edge (dir1 AUC ~.50-.53
+everywhere) and can HURT (predictive Sharpe .856 at 16 features -> .481 at
+32), while the ALGORITHM dominates (IQL > A2C on every rep and far less
+rep-sensitive). Information is not the bottleneck; the decision layer is.
 
 **CSI300 / CHINA EXTENSION (2026-09-04, section 7.28):** the full pipeline and
 all four models were re-run on the CSI300 index (sh000300, Sina). DDR
@@ -4036,6 +4048,157 @@ margin halves by 1 bps and vanishes by 5-10 bps, exactly the fragile
 - Context scan u=10/20/40/60 (retraining) for TACR/D.
 - Tune the downstream RL column (annealed lr, entropy schedule, IQL bolt-on)
       before drawing stronger "RL cannot compensate" claims.
+
+### 8.7 REPRESENTATION-QUALITY SCORECARD (2026-09-15)
+-------------------------------------------------------------------------------
+"Representation quality" is NOT one number. New module
+`src/interpret/quality.py` + driver `scripts/rep_quality_scorecard.py` measure
+the frozen h_t along the advisor's hierarchy
+    information -> compression -> stability -> downstream utility -> trading
+with an identical no-lookahead protocol (fit on train, eval val/test):
+
+  information    linear probes: direction_1/5/20, magnitude_1, vol_5/20,
+                 regime, drawdown_20 -> accuracy, balanced acc, AUC, log loss
+                 (clf); R2, MAE, Spearman (reg)
+  preservation   reconstruction R2 of the current z-features (mean + per feat)
+  efficiency     effective rank / spectral rank / top1 / top5 / k95
+  redundancy     PCA dimension contribution: incremental predictive info per
+                 principal component + k_to_95 (dims carrying 95% of the metric)
+  stability      mean pairwise linear CKA ACROSS SEEDS of the same objective
+  trading        Supervised + frozen-RL policies: Sharpe, total return, max DD,
+                 turnover, exposure, cost robustness (1/5 bps)
+  temporal/feat  mask-lag / zero-feature / perm-feature -> ||dh||, |da|
+
+Files: `src/interpret/quality.py`, `scripts/rep_quality_scorecard.py`,
+`tests/test_quality.py` (8 tests; full suite 86 pass). `fwd_dd_20` (forward
+20-day drawdown) added to `src/interpret/targets.py`. Extra seeds 111/222
+trained for all three rep-lab objectives (~40 s each) so stability is real.
+Outputs: `data/interpret/rep_quality_scorecard.csv` (786 rows),
+`data/interpret/rep_quality_vs_dimension.csv` (108 points).
+
+TEST-SPLIT RESULTS (higher better; AUC/R2, except where noted):
+  info   dir1_AUC: raw .521, contr .514, pred .520, auto .481, DDR .507,
+         TACR .497, D .502  (all ~chance 0.50)
+         regime_bacc: DDR .789, D .789, TACR .778 >> contr .666 > raw .567 >
+         pred .558 > auto .552
+         vol20_R2: raw .380 > TACR .242 > D .149 > DDR .085 > pred .075 >
+         auto .061 > contr -.054  (every learned encoder collapses long-vol)
+         mag_R2: DDR .074, contr .050, auto .029, pred -.018
+  eff    effective_rank: DDR 1.79 < D 2.62 < pred 2.77 < TACR 3.55 < auto 4.85
+         < contr 5.34 < raw 6.26
+  stab   cross-seed CKA: contr .980, auto .976, pred .964 (3 seeds); DDR .951,
+         D .892, TACR .657 (5 seeds)  -- TACR is by far the least reproducible
+  trade  Supervised Sharpe: pred 1.036 > auto .635 > raw .394 > contr .317;
+         RL-A2C: auto .139, contr .076, raw -.221, pred -.323; Supervised
+         turnover: raw .720 vs learned .37-.42; best max DD pred -.172
+  dim    direction_1 AUC is FLAT at ~0.50-0.52 from k=1 to k=128 principal
+         components for EVERY representation -> no rep buys directional
+         information by adding dimension; magnitude k_to_95: DDR 4, others 1-2
+  temp   predictive encoder is the most recent-weighted (mask-lag dh_rel .270
+         at lag1 -> .013 at lag15); auto/contrastive decay more slowly; raw
+         flat ~.21 (zeroing an 8-d slice of 160)
+
+READING: the axes DISSOCIATE, so "quality" cannot be summarised by Sharpe.
+(1) TACR has the most capacity but is the least seed-stable and near-chance on
+direction; (2) the predictive rep is the most compressed (eff rank 2.77) yet
+produces the best supervised decisions (1.036) -> compression is not collapse;
+(3) directional information is ~absent and does not grow with dimension,
+consistent with the 8-feature-saturation thesis (information is not the
+bottleneck); (4) RL-A2C fails to exploit the very representation that helps
+the supervised head. This is the paper's core "representation quality !=
+trading performance" evidence.
+
+CAVEATS: downstream RL is one untuned A2C seed; cross-seed CKA uses whatever
+seeds exist on disk (3 rep-lab, 5 project-model); direction_1 k_to_95 is
+degenerate (95% of a near-chance metric is reached by 1 PC) so read the
+dimension CURVE, not k_to_95, for direction; no buy-and-hold row yet.
+
+### 8.8 DISSOCIATION STRESS-TEST - FEATURE SCALING 4->32, LATENT DIM, 10 SEEDS, REP x {A2C,IQL} (2026-09-15)
+-------------------------------------------------------------------------------
+The goal of this section is to PROVE and EXPLAIN section 8.7's dissociation
+(representation quality != trading performance) under pressure: more features,
+more latent dimensions, more seeds, and a second decision algorithm.
+
+NEW CODE
+- src/data/feature_bank.py: a 32-feature CAUSAL bank with NESTED subsets
+  4/8/12/16/24/32; the 8-point is exactly the production state (canonical 8
+  read verbatim). Groups: core 4, canonical 8, +4/+8 macro, +8 multi-horizon
+  (ret_10d/60d, vol_5d/60d, rsi_6/28, macd_signal, bollinger_width), +8
+  structure (volume_z_5d/60d, ma_ratio_5_20/20_60, price_vs_ma_20/60,
+  sentiment_skew, drawdown_60d). All causal; expanding z-score (min_periods 60).
+- src/models/rep_lab/data.py: load_rep_data over an arbitrary feature subset,
+  keeping the SAME dates/next-returns/regimes/valid mask (comparability).
+- src/models/rep_lab/offline_rl.py: offline A2C and IQL heads on FROZEN h_t,
+  both trained on the SAME Phase-1 behavior transitions (32 policies) and
+  evaluated identically (test Sharpe of the deterministic policy on realized
+  market returns). IQL = expectile V + target Q + AWR (Kostrikov et al. 2022).
+- config hooks: RepLabConfig.feature_cols / tag / n_features(); tag_path gains
+  a variant suffix. scripts/rep_scaling.py, scripts/rep_offline_rl.py,
+  scripts/rep_dissociation.py. tests/test_feature_bank.py,
+  tests/test_rep_offline_rl.py. Full suite 91 pass.
+- 10 seeds {20260814,111,222,333,444,555,666,777,888,999}; the (8-feature,
+  128-d) cell reuses the headline checkpoints.
+
+A. FEATURE SCALING 4->32 (supervised direction Sharpe, mean over 10 seeds)
+     size        4     8     12    16    24    32
+     predictive .826  .751  .770  .856  .657  .481   <- DECLINES past 16
+     contrastive .928  .487  .818  .969 1.005 1.008   <- RISES
+     auto       .751  .674  .658  .680  .682  .730   <- flat
+   dir1 AUC is ~.50-.53 at EVERY size and every objective: no feature count
+   creates directional information.
+
+B. LATENT-DIMENSION SWEEP (supervised Sharpe)
+     dim         4     8     16    32    64    128
+     predictive .804  .969  .872  .756  .835  .751
+     contrastive .833 .722  .834  .741  .630  .487   <- DECLINES
+     auto       .803  .772  .772  .862  .864  .674
+   effective rank and cross-seed CKA both RISE with hidden dim, but Sharpe does
+   not: 8 dims is as good as 128 for the predictive rep.
+
+C. DOES QUALITY PREDICT UTILITY? (corr across the 36 scaling cells)
+     mag_r2         pearson +0.33  (weak)
+     vol20_r2       pearson +0.27  (weak)
+     dir1_auc       pearson +0.10  (none)
+     regime_bacc    pearson +0.01  (none)
+     effective_rank pearson -0.08  (none / slightly negative)
+     cross_seed_cka pearson -0.23  (NEGATIVE - reproducibility is not utility)
+   No information/compression/stability axis explains downstream Sharpe; the
+   best cells are among the most compressed and (for CKA) among the least stable.
+
+D. REPRESENTATION x ALGORITHM (test Sharpe, 10 head seeds)
+     rep            A2C     IQL
+     raw           .362    .559
+     auto          .464    .624
+     predictive    .617    .628
+     contrastive   .527    .621
+   IQL beats A2C on EVERY representation and is far less rep-sensitive
+   (std .04-.16 vs A2C .09-.39). Algorithm choice dominates representation
+   choice; A2C is the fragile layer.
+
+INTERPRETATION (the dissociation, explained)
+1. INFORMATION IS NOT THE BOTTLENECK. Directional AUC is at chance at 4 and at
+   32 features, and at 4..128 dims. Adding inputs does not manufacture edge.
+2. MORE CAPACITY CAN HURT. Predictive Sharpe falls .856 -> .481 from 16 to 32
+   features and is flat-to-worse at 128 dims; contrastive falls monotonically
+   with dim. Extra dimensions add redundant/noisy directions the decision head
+   overfits.
+3. COMPRESSION IS NOT THE GOAL. Effective rank is uncorrelated with utility;
+   the best predictive cell (8 features / 8 dims) is one of the most compressed.
+4. REPRODUCIBILITY IS NOT THE GOAL. Cross-seed CKA correlates NEGATIVELY with
+   utility: stable representations are not better trading representations.
+5. THE DECISION LAYER DOMINATES. IQL > A2C everywhere and is representation-
+   insensitive, which explains 8.5/8.7 (predictive rep good for the supervised
+   head, A2C negative): the algorithm, not the representation, is the weak link.
+   "Improve the representation" is therefore the wrong lever; "improve the
+   decision layer" is the right one.
+
+CAVEATS: one encoder family (GRU); feature bank is SPY + US macro; offline RL
+uses the Phase-1 behavior transitions (32 policies) with test-split market-return
+evaluation; 10 seeds but one head architecture per algorithm; the dim sweep's
+128-d point equals the headline configuration.
+
+OUTPUTS (data/interpret/): rep_scaling.csv, rep_scaling_summary.csv,
+rep_offline_rl.csv, rep_offline_rl_summary.csv, rep_quality_utility_corr.csv.
 
 ------------------------------------------------------------------------------
 END OF NOTES

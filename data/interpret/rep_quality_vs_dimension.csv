@@ -1,0 +1,109 @@
+representation,dim,target,k,metric
+raw window (160d),160,direction_1,1,0.49580539591315453
+raw window (160d),160,direction_1,2,0.49647190293742016
+raw window (160d),160,direction_1,4,0.4919300766283525
+raw window (160d),160,direction_1,8,0.5073954342273308
+raw window (160d),160,direction_1,16,0.4983117816091954
+raw window (160d),160,direction_1,32,0.5075031928480205
+raw window (160d),160,direction_1,64,0.5169181034482759
+raw window (160d),160,direction_1,128,0.5163473818646231
+raw window (160d),160,magnitude_1,1,0.013019787072637734
+raw window (160d),160,magnitude_1,2,0.011634374256685676
+raw window (160d),160,magnitude_1,4,0.10160105846249934
+raw window (160d),160,magnitude_1,8,0.10172441789748299
+raw window (160d),160,magnitude_1,16,0.0928958344616796
+raw window (160d),160,magnitude_1,32,0.08353715270962214
+raw window (160d),160,magnitude_1,64,0.07733478038865271
+raw window (160d),160,magnitude_1,128,0.050951383413048834
+replab auto (128d),128,direction_1,1,0.495242656449553
+replab auto (128d),128,direction_1,2,0.4920897190293742
+replab auto (128d),128,direction_1,4,0.4874002234993614
+replab auto (128d),128,direction_1,8,0.5105842911877395
+replab auto (128d),128,direction_1,16,0.5017201468710089
+replab auto (128d),128,direction_1,32,0.49395753512132823
+replab auto (128d),128,direction_1,64,0.48989064495530016
+replab auto (128d),128,direction_1,128,0.4824752554278416
+replab auto (128d),128,magnitude_1,1,0.04386763475250899
+replab auto (128d),128,magnitude_1,2,0.04462879130584396
+replab auto (128d),128,magnitude_1,4,0.08090565522167659
+replab auto (128d),128,magnitude_1,8,0.12969145848133068
+replab auto (128d),128,magnitude_1,16,0.09632956340716714
+replab auto (128d),128,magnitude_1,32,0.06727638866953212
+replab auto (128d),128,magnitude_1,64,0.05120495551080273
+replab auto (128d),128,magnitude_1,128,0.02860055994032673
+replab predictive (128d),128,direction_1,1,0.5031928480204343
+replab predictive (128d),128,direction_1,2,0.5005108556832695
+replab predictive (128d),128,direction_1,4,0.5102011494252874
+replab predictive (128d),128,direction_1,8,0.500235472541507
+replab predictive (128d),128,direction_1,16,0.5009937739463601
+replab predictive (128d),128,direction_1,32,0.4940014367816091
+replab predictive (128d),128,direction_1,64,0.5062539910600256
+replab predictive (128d),128,direction_1,128,0.5198475415070243
+replab predictive (128d),128,magnitude_1,1,0.041813397968306854
+replab predictive (128d),128,magnitude_1,2,0.111732343300046
+replab predictive (128d),128,magnitude_1,4,0.12053365928940052
+replab predictive (128d),128,magnitude_1,8,0.12073383321342468
+replab predictive (128d),128,magnitude_1,16,0.09821828588263815
+replab predictive (128d),128,magnitude_1,32,0.05013462193479201
+replab predictive (128d),128,magnitude_1,64,0.023813411606495527
+replab predictive (128d),128,magnitude_1,128,-0.01778709817830859
+replab contrastive (128d),128,direction_1,1,0.49882662835249036
+replab contrastive (128d),128,direction_1,2,0.49331098339719026
+replab contrastive (128d),128,direction_1,4,0.49106401660280974
+replab contrastive (128d),128,direction_1,8,0.5031369731800766
+replab contrastive (128d),128,direction_1,16,0.5065253831417624
+replab contrastive (128d),128,direction_1,32,0.4969747765006385
+replab contrastive (128d),128,direction_1,64,0.5238266283524904
+replab contrastive (128d),128,direction_1,128,0.5135217113665389
+replab contrastive (128d),128,magnitude_1,1,0.06466299853038793
+replab contrastive (128d),128,magnitude_1,2,0.06404423378391089
+replab contrastive (128d),128,magnitude_1,4,0.10038156173454738
+replab contrastive (128d),128,magnitude_1,8,0.10201772439948642
+replab contrastive (128d),128,magnitude_1,16,0.09946733306065658
+replab contrastive (128d),128,magnitude_1,32,0.0806772019107751
+replab contrastive (128d),128,magnitude_1,64,0.05486601469451702
+replab contrastive (128d),128,magnitude_1,128,0.05019402886946833
+DDR-GRU (32d),32,direction_1,1,0.5010616219667944
+DDR-GRU (32d),32,direction_1,2,0.5034442848020434
+DDR-GRU (32d),32,direction_1,4,0.4874002234993614
+DDR-GRU (32d),32,direction_1,8,0.4848259897828863
+DDR-GRU (32d),32,direction_1,16,0.48573595146871007
+DDR-GRU (32d),32,direction_1,32,0.5086805555555556
+DDR-GRU (32d),32,magnitude_1,1,0.027927180036296795
+DDR-GRU (32d),32,magnitude_1,2,0.03032781756588876
+DDR-GRU (32d),32,magnitude_1,4,0.11753740316338512
+DDR-GRU (32d),32,magnitude_1,8,0.1465231060474701
+DDR-GRU (32d),32,magnitude_1,16,0.10934292377060328
+DDR-GRU (32d),32,magnitude_1,32,0.07433535191882923
+TACR transformer (128d),128,direction_1,1,0.49974058109833974
+TACR transformer (128d),128,direction_1,2,0.49266044061302683
+TACR transformer (128d),128,direction_1,4,0.49238904853128995
+TACR transformer (128d),128,direction_1,8,0.49162675606641126
+TACR transformer (128d),128,direction_1,16,0.5019356641123882
+TACR transformer (128d),128,direction_1,32,0.5029334291187739
+TACR transformer (128d),128,direction_1,64,0.49887851213282247
+TACR transformer (128d),128,direction_1,128,0.497014687100894
+TACR transformer (128d),128,magnitude_1,1,0.05907319068271044
+TACR transformer (128d),128,magnitude_1,2,0.0913717808985165
+TACR transformer (128d),128,magnitude_1,4,0.09981966830491018
+TACR transformer (128d),128,magnitude_1,8,0.09477696065383934
+TACR transformer (128d),128,magnitude_1,16,0.05021069047315163
+TACR transformer (128d),128,magnitude_1,32,0.04100741877269187
+TACR transformer (128d),128,magnitude_1,64,0.03928453420079148
+TACR transformer (128d),128,magnitude_1,128,0.007087680493777393
+D encoder (128d),128,direction_1,1,0.4967273307790549
+D encoder (128d),128,direction_1,2,0.4958572796934866
+D encoder (128d),128,direction_1,4,0.4897709131545338
+D encoder (128d),128,direction_1,8,0.5016522988505747
+D encoder (128d),128,direction_1,16,0.5088122605363985
+D encoder (128d),128,direction_1,32,0.521455938697318
+D encoder (128d),128,direction_1,64,0.5090118135376756
+D encoder (128d),128,direction_1,128,0.502382662835249
+D encoder (128d),128,magnitude_1,1,0.037413840175026025
+D encoder (128d),128,magnitude_1,2,0.10243729384186306
+D encoder (128d),128,magnitude_1,4,0.038590818064002885
+D encoder (128d),128,magnitude_1,8,0.046979871123773886
+D encoder (128d),128,magnitude_1,16,0.027170717659541155
+D encoder (128d),128,magnitude_1,32,-0.007551474108631329
+D encoder (128d),128,magnitude_1,64,-0.022292590845104154
+D encoder (128d),128,magnitude_1,128,-0.05239915266530426

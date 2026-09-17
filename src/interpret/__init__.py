@@ -13,4 +13,8 @@ Modules:
                    aligned to the shared SPY date grid.
 - ``probes``     : linear-probe fit/eval helpers (classification accuracy +
                    baseline, regression R2).
+- ``quality``    : the multidimensional representation-quality scorecard
+                   (information / compression / stability / trading /
+                   temporal-feature sensitivity), driven by
+                   ``scripts.rep_quality_scorecard``.
 """

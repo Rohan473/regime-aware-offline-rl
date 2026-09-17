@@ -25,11 +25,16 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=None)
     ap.add_argument("--downstream", default="none",
                     choices=["none", "all"])
+    ap.add_argument("--seed", type=int, default=None,
+                    help="override the training seed (extra seeds feed the "
+                         "cross-seed stability axis of the quality scorecard)")
     args = ap.parse_args()
 
     cfg = RepLabConfig()
     if args.epochs:
         cfg.epochs = args.epochs
+    if args.seed is not None:
+        cfg.seed = args.seed
 
     objectives = list(OBJECTIVES) if args.objective == "all" else [args.objective]
     for obj in objectives:

@@ -22,7 +22,8 @@ import torch
 from torch import nn
 
 from src.eval.regime_eval import sharpe_ratio
-from src.models.ddr.data import DDRData, load_ddr_data, split_ddr_data
+from src.models.ddr.data import DDRData, split_ddr_data
+from src.models.rep_lab.data import load_rep_data
 from src.models.objective_lab.train import _squashed_logp, _valid_mask
 from src.models.rep_lab.config import PRED_TARGETS, RepLabConfig, tag_path
 from src.models.rep_lab.model import DownstreamAgent, RawFeat, build_rep_objective
@@ -65,7 +66,7 @@ def train_representation(objective: str, cfg: RepLabConfig,
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
     if data is None:
-        data = load_ddr_data(cfg.window)
+        data = load_rep_data(cfg)
     splits = split_ddr_data(data)
     train, val = splits["train"], splits["val"]
     tmask = _valid_mask(train)
@@ -183,7 +184,7 @@ def load_rep(objective: str, cfg: RepLabConfig, checkpoint) -> nn.Module:
 
 def extract_rep(objective: str, cfg: RepLabConfig, checkpoint) -> object:
     from src.interpret.extract import Extracted
-    data = load_ddr_data(cfg.window)
+    data = load_rep_data(cfg)
     rep = load_rep(objective, cfg, checkpoint)
     with torch.no_grad():
         H = rep.encoder.encode(data.windows).numpy()
@@ -193,9 +194,9 @@ def extract_rep(objective: str, cfg: RepLabConfig, checkpoint) -> object:
 def raw_window_rep(cfg: RepLabConfig) -> object:
     """Raw-flattened window baseline (no learning)."""
     from src.interpret.extract import Extracted
-    data = load_ddr_data(cfg.window)
+    data = load_rep_data(cfg)
     H = data.windows.numpy().reshape(len(data.dates), -1)
-    return Extracted(name=f"raw window ({cfg.window * cfg.in_dim}d)", dates=data.dates, H=H)
+    return Extracted(name=f"raw window ({cfg.window * cfg.n_features()}d)", dates=data.dates, H=H)
 
 
 # --------------------------------------------------------------------------
@@ -218,7 +219,7 @@ def train_downstream(rep_name: str, cfg: RepLabConfig,
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
     if data is None:
-        data = load_ddr_data(cfg.window)
+        data = load_rep_data(cfg)
     splits = split_ddr_data(data)
     train, val = splits["train"], splits["val"]
     tmask = _valid_mask(train)
@@ -231,7 +232,7 @@ def train_downstream(rep_name: str, cfg: RepLabConfig,
             raise FileNotFoundError(f"{rep_name} representation not trained: {ck}")
         encoder = load_rep(rep_name, cfg, ck).encoder  # frozen
 
-    feat = None if rep_name != "raw" else RawFeat(cfg.window * cfg.in_dim, cfg.hidden)
+    feat = None if rep_name != "raw" else RawFeat(cfg.window * cfg.n_features(), cfg.hidden)
     agent = DownstreamAgent(cfg.hidden, feat)
     opt = torch.optim.Adam(agent.parameters(), lr=cfg.lr)
     path = tag_path(cfg, rep_name, subdir="downstream")

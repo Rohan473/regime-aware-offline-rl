@@ -95,9 +95,9 @@ def build_rep_objective(objective: str, cfg) -> nn.Module:
         pass
 
     mod = Rep()
-    mod.encoder = Encoder(cfg.in_dim, cfg.hidden)
+    mod.encoder = Encoder(cfg.n_features(), cfg.hidden)
     if objective == "auto":
-        mod.head = FullReconHead(cfg.hidden, cfg.window, cfg.in_dim)
+        mod.head = FullReconHead(cfg.hidden, cfg.window, cfg.n_features())
     elif objective == "predictive":
         from .config import PRED_TARGETS
 
