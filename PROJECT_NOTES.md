@@ -53,7 +53,15 @@ and IQL stay within ~0.05-0.10 of the behavior policy while A2C/CQL diverge
 it"; the value of divergence is regime-dependent (BC/IQL win bear/crisis,
 A2C/CQL win bull), shows no monotonic latent-dimension trend, and all
 algorithms fail together in the 2022 bear year (no representation-driven
-temporal drift). Forward drawdown is unrecoverable by any probe.
+temporal drift). Forward drawdown is unrecoverable by any probe. Section 8.11
+synthesises with bootstrap CIs and a two-way decomposition (algorithm 58% /
+representation 16% / interaction 26% of the utility variance): the algorithm
+advantage is significant only on raw/auto reps (on the predictive rep all
+algorithms are statistically equivalent), and divergence from the behavior
+policy tracks representation sensitivity (pearson +0.94 across algorithms)
+and regime-dependent utility (bull +0.47, bear -0.60, crisis -0.58). The
+central figure is representation -> policy divergence -> representation
+sensitivity -> regime-dependent utility.
 
 **CSI300 / CHINA EXTENSION (2026-09-04, section 7.28):** the full pipeline and
 all four models were re-run on the CSI300 index (sh000300, Sina). DDR
@@ -4368,6 +4376,78 @@ utility relationship.
 
 OUTPUTS (data/interpret/): rep_rl_dim_sweep.csv, rep_rl_diagnostics.csv,
 rep_nonlinear_probe.csv (now 5 targets).
+
+### 8.11 SYNTHESIS - BOOTSTRAP CIs, INTERACTION DECOMPOSITION, DIVERGENCE MECHANISM (2026-09-15)
+-------------------------------------------------------------------------------
+Statistical presentation + mechanism synthesis (no new experiments). New code:
+scripts/rep_mechanism.py. Outputs: rep_bootstrap_ci.csv, rep_contrasts.csv,
+rep_mechanism.csv, rep_divergence_regime.csv, rep_mechanism.png.
+
+A. BOOTSTRAP CIs (10k resamples) - rep x algo test Sharpe, mean +/- sd [95% CI]
+     raw          A2C .362+/-.210 [.24,.48]  BC .682+/-.168 [.58,.77]
+                  IQL .559+/-.163 [.46,.65]  CQL .574+/-.120 [.49,.63]
+     auto         A2C .464+/-.365 [.23,.65]  BC .642+/-.120 [.58,.72]
+                  IQL .624+/-.090 [.57,.68]  CQL .768+/-.087 [.71,.82]
+     predictive   A2C .617+/-.089 [.57,.67]  BC .631+/-.026 [.62,.65]
+                  IQL .628+/-.038 [.61,.65]  CQL .676+/-.128 [.60,.75]
+     contrastive  A2C .527+/-.389 [.29,.75]  BC .641+/-.098 [.58,.70]
+                  IQL .621+/-.101 [.56,.68]  CQL .709+/-.087 [.66,.76]
+   KEY CONTRASTS vs A2C (bootstrap 95% CI of the difference):
+     raw          BC-A2C +.319 [.160,.472]  IQL-A2C +.197 [.038,.351]
+                  CQL-A2C +.212 [.066,.349]   (all exclude 0)
+     auto         CQL-A2C +.304 [.105,.542]; BC/IQL CIs include 0
+     predictive   all contrasts ~0, CIs include 0
+     contrastive  all contrasts' CIs include 0
+   => the "algorithm advantage" is statistically significant ONLY on the raw
+   and auto representations; on the predictive representation the algorithms
+   are statistically equivalent. The representation MEDIATES the algorithm gap.
+
+B. ALGORITHM x REPRESENTATION INTERACTION
+     algo  mean   sd    range  CV     mean_divergence
+     A2C   .492  .107   .255  .218    .642
+     BC    .649  .022   .051  .035    .067
+     IQL   .608  .033   .069  .054    .068
+     CQL   .682  .081   .194  .120    .732
+   Two-way variance decomposition of the 4x4 cell-mean matrix:
+     algorithm 58.0% | representation 15.6% | interaction 26.4%
+   => the algorithm main effect dominates; the representation main effect is
+   small; the INTERACTION is large (26%). A2C is the most representation-
+   sensitive (range .255, CV .218), BC the least (.051/.035).
+
+C. DIVERGENCE <-> REPRESENTATION SENSITIVITY
+     across algorithms: pearson(mean_divergence, range) = +0.935 (p=0.065),
+       spearman +0.800
+     at (rep,algo) level: pearson(divergence, |U - mean_algo U|) = +0.418 (p=0.107)
+   => higher behavior divergence is associated with higher representation
+   sensitivity: the algorithms that leave the behavior policy are the ones
+   whose utility depends on the representation.
+
+D. DIVERGENCE x REGIME -> UTILITY
+     pearson(divergence, regime-conditioned Sharpe):
+       bull +0.466 | bear -0.595 | crisis -0.581
+   => divergence PAYS in bull markets and COSTS in bear/crisis; the utility of
+   leaving the behavior policy is regime-dependent.
+
+MECHANISM CHAIN (paper's central figure, rep_mechanism.png):
+   representation -> policy divergence -> representation sensitivity ->
+   regime-dependent utility
+   BC/IQL stay near behavior (divergence ~.07) -> low sensitivity (range
+   .05-.07) -> defensive (win bear/crisis). A2C/CQL diverge (.64/.73) -> high
+   sensitivity (range .26/.19) -> offensive (win bull). All algorithms fail
+   together in the 2022 bear year and none beats buy-and-hold (.784).
+
+PAPER STORY (synthesis): separate (i) information AVAILABLE in the input,
+(ii) information ENCODED by the representation, and (iii) information the
+decision algorithm EXPLOITS. (i) Direction is not recoverable at any feature
+count/dimension by linear, GBDT, or MLP probes. (ii) Nonlinear probes recover
+volatility but not direction or drawdown; effective rank and cross-seed CKA do
+not predict utility. (iii) The algorithm materially mediates representation-
+utility relationships via behavior divergence, and the value of that
+divergence is regime-dependent. The contribution is explanatory (understanding
+offline financial RL), not a profitable strategy.
+
+CAVEATS: cross-algorithm divergence/sensitivity correlation has n=4 (p=.065);
+divergence measured at dim=128; matrix uses 10 seeds, regime/diagnostics 3.
 
 ------------------------------------------------------------------------------
 END OF NOTES
