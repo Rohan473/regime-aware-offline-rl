@@ -58,6 +58,8 @@ def diff_ci(a, b, n: int = N_BOOT, seed: int = 0) -> tuple[float, float, float]:
 
 
 def main() -> None:
+    from scipy.stats import pearsonr, spearmanr
+
     off = pd.read_csv(OUT_DIR / "rep_offline_rl.csv")
     diag = pd.read_csv(OUT_DIR / "rep_rl_diagnostics.csv")
     scal = pd.read_csv(OUT_DIR / "rep_scaling.csv")
@@ -110,7 +112,8 @@ def main() -> None:
                              range=float(rng), cv=float(cv)))
     per_algo = pd.DataFrame(per_algo)
 
-    # two-way variance decomposition of the 4x4 cell-mean matrix
+    # DESCRIPTIVE variance decomposition of the 4x4 cell-mean matrix (no error
+    # term; "share of observed cell-mean variation", NOT inferential R^2)
     grand = mat.to_numpy().mean()
     ss_algo = mat.shape[0] * ((mat.mean(axis=0) - grand) ** 2).sum()
     ss_rep = mat.shape[1] * ((mat.mean(axis=1) - grand) ** 2).sum()
@@ -120,12 +123,39 @@ def main() -> None:
                   pct_rep=float(100 * ss_rep / ss_total),
                   pct_interaction=float(100 * ss_inter / ss_total))
 
+    # INFERENTIAL two-way ANOVA on the full 4x4x10 observations (error term =
+    # seed-within-cell), typ=2, with eta^2 effect sizes.
+    import statsmodels.api as sm
+    import statsmodels.formula.api as smf
+    aov_model = smf.ols("test_sharpe ~ C(rep) + C(algo) + C(rep):C(algo)", data=off).fit()
+    aov = sm.stats.anova_lm(aov_model, typ=2)
+    ss_err = float(aov.loc["Residual", "sum_sq"])
+    ss_tot_inf = ss_err + float(aov["sum_sq"].drop("Residual").sum())
+    aov_rows = []
+    for term in ("C(rep)", "C(algo)", "C(rep):C(algo)"):
+        ss = float(aov.loc[term, "sum_sq"])
+        aov_rows.append(dict(term=term, df=int(aov.loc[term, "df"]),
+                             F=float(aov.loc[term, "F"]), p=float(aov.loc[term, "PR(>F)"]),
+                             eta2=ss / ss_tot_inf))
+    aov_rows.append(dict(term="Residual", df=int(aov.loc["Residual", "df"]),
+                         F=np.nan, p=np.nan, eta2=ss_err / ss_tot_inf))
+    pd.DataFrame(aov_rows).to_csv(OUT_DIR / "rep_anova.csv", index=False)
+
+    # seed-level divergence association (48 obs: 4 reps x 4 algos x 3 seeds)
+    d2 = (diag[diag["metric"] == "divergence"][["rep", "algo", "seed", "value"]]
+          .rename(columns={"value": "divergence"})
+          .merge(off[["rep", "algo", "seed", "test_sharpe"]], on=["rep", "algo", "seed"]))
+    d2["dev"] = d2.groupby("algo")["test_sharpe"].transform(lambda s: s - s.mean())
+    pooled_div = pearsonr(d2["divergence"], d2["test_sharpe"])
+    dev_div = pearsonr(d2["divergence"], d2["dev"].abs())
+    per_algo_div = {a: float(pearsonr(g["divergence"], g["test_sharpe"])[0])
+                    for a, g in d2.groupby("algo") if g["divergence"].std() > 0}
+
     # ---- C. divergence <-> representation sensitivity ----
     div = (diag[diag["metric"] == "divergence"]
            .groupby(["rep", "algo"])["value"].mean().reset_index())
     div_a = div.groupby("algo")["value"].mean()
     mech = per_algo.merge(div_a.rename("mean_divergence"), left_on="algo", right_index=True)
-    from scipy.stats import pearsonr, spearmanr
     r_p = pearsonr(mech["mean_divergence"], mech["range"])
     r_s = spearmanr(mech["mean_divergence"], mech["range"])
     # divergence vs |utility - mean utility| at the (rep, algo) level
@@ -165,14 +195,21 @@ def main() -> None:
 
     print("\n=== B. representation sensitivity per algorithm ===")
     print(per_algo.round(3).to_string(index=False))
-    print(f"two-way decomposition: algorithm {decomp['pct_algo']:.1f}% | "
+    print(f"DESCRIPTIVE cell-mean decomposition: algorithm {decomp['pct_algo']:.1f}% | "
           f"representation {decomp['pct_rep']:.1f}% | interaction {decomp['pct_interaction']:.1f}%")
+    print("\n=== B'. two-way ANOVA on the full 4x4x10 observations (typ=2) ===")
+    print(pd.DataFrame(aov_rows).round(4).to_string(index=False))
 
-    print("\n=== C. divergence vs representation sensitivity ===")
+    print("\n=== C. divergence vs representation sensitivity (DESCRIPTIVE; n=4 algos) ===")
     print(mech.round(3).to_string(index=False))
     print(f"  across algorithms: pearson(divergence, range)={r_p[0]:+.3f} (p={r_p[1]:.3f}), "
-          f"spearman={r_s[0]:+.3f}")
+          f"spearman={r_s[0]:+.3f}  [n=4, descriptive only]")
     print(f"  at (rep,algo) level: pearson(divergence, |U-meanU|)={r_cell[0]:+.3f} (p={r_cell[1]:.3f})")
+    print(f"  seed level (n={len(d2)}): pearson(divergence, test_sharpe)={pooled_div[0]:+.3f} "
+          f"(p={pooled_div[1]:.3f}); pearson(divergence, |U-cell mean|)={dev_div[0]:+.3f} "
+          f"(p={dev_div[1]:.3f})")
+    print(f"  per-algorithm seed-level pearson(divergence, test_sharpe): "
+          f"{ {k: round(v,3) for k,v in per_algo_div.items()} }")
 
     print("\n=== D. divergence vs regime-conditioned Sharpe ===")
     for g, c in regime_corr.items():

@@ -4449,6 +4449,97 @@ offline financial RL), not a profitable strategy.
 CAVEATS: cross-algorithm divergence/sensitivity correlation has n=4 (p=.065);
 divergence measured at dim=128; matrix uses 10 seeds, regime/diagnostics 3.
 
+### 8.12 STATISTICAL CORRECTIONS + PAPER SYNTHESIS (2026-09-15)
+-------------------------------------------------------------------------------
+Follow-up on 8.11: replace the cell-mean "variance explained" with a proper
+two-way ANOVA that carries an error term, add a seed-level divergence
+association, and add the CQL implementation ablation. New code:
+scripts/rep_mechanism.py (extended), scripts/rep_cql_ablation.py. New outputs:
+rep_anova.csv, rep_cql_ablation.csv.
+
+A. TWO-WAY ANOVA on the full 4 reps x 4 algos x 10 seeds (typ=2)
+     term              df    F       p        eta^2
+     C(rep)             3   2.437   .0671    .038
+     C(algo)            3   9.049   <.0001   .142
+     C(rep):C(algo)     9   1.372   .2061    .065
+     Residual         144     -       -      .755
+   READ HONESTLY:
+   - ALGORITHM is the only robust inferential effect (F=9.05, p<.0001,
+     eta^2=.14).
+   - REPRESENTATION is marginal (p=.067, eta^2=.04).
+   - The representation x algorithm INTERACTION is NOT significant (p=.21,
+     eta^2=.065) -- the 8.11 "26.4% interaction" is a DESCRIPTIVE share of
+     cell-mean variation, not an inferential effect. Seed noise dominates
+     (eta^2=.755). So "algorithm mediates the representation-utility mapping"
+     is supported as a main effect, while the interaction remains a
+     hypothesis, not an established effect.
+
+B. SEED-LEVEL DIVERGENCE ASSOCIATION (n=48: 4 reps x 4 algos x 3 seeds)
+     pooled pearson(divergence, test_sharpe)      = +.129 (p=.381)
+     pooled pearson(divergence, |U - cell mean|)  = +.160 (p=.278)
+     per-algorithm (n=12 each): A2C -.151, BC -.458, IQL -.761, CQL +.962
+   => at the seed level the divergence-utility association is WEAK and
+   INCONSISTENT in sign across algorithms (CQL positive, IQL/BC negative).
+   The 8.11 divergence<->sensitivity result (r=+.935, n=4) and the
+   regime-conditioned correlations (n=48: bull +.466, bear -.595, crisis
+   -.581) remain the stronger, though still descriptive, evidence. Do NOT
+   present divergence as a causal driver.
+
+C. CQL IMPLEMENTATION ABLATION (bc_coef 0.0 vs 0.5, 10 seeds)
+     rep          bc=0.0: div  std   collapse  Sharpe | bc=0.5: div  std   collapse  Sharpe
+     raw          .911  .263  .60  .568 | .612  .308  .00  .574
+     auto         .764  .338  .30  .256 | .706  .288  .00  .768
+     predictive   .667  .174  .40  .232 | .723  .298  .00  .676
+     contrastive  .828  .235  .50  .291 | .819  .249  .00  .709
+   => the unregularized CQL(H) actor COLLAPSES to a near-constant position in
+   30-60% of seeds; the TD3+BC-style actor regularizer removes collapse
+   entirely and lifts test Sharpe. The main-table CQL uses bc_coef=0.5 and this
+   must be stated for reproducibility (CQL's low divergence is NOT why it
+   works; collapse is about action variance).
+
+D. CORRECTED WORDING (use in the paper)
+   - "descriptive variance decomposition of cell-mean utility" (not
+     "variance explained").
+   - "across the four decision algorithms, behavior divergence was strongly
+     positively associated with representation sensitivity (Pearson r=.935);
+     given the four-algorithm sample this is descriptive."
+   - "in this dataset and evaluation protocol, Bellman-based sequential
+     optimization did not provide a measurable advantage over behavior
+     cloning" (NOT "Bellman optimization is unnecessary").
+   - "None of the learned decision policies exceeded the buy-and-hold baseline
+     (test Sharpe .784) in aggregate."
+
+E. HYPOTHESES / RESULTS ORGANIZATION (paper structure)
+   H1 Representation-utility dissociation: representation diagnostics do not
+      consistently predict downstream utility. (Supported: dir AUC at chance,
+      eff rank/CKA uncorrelated, feature/dim sweeps non-monotone.)
+   H2 Algorithm mediation: the representation->utility mapping depends on the
+      decision algorithm. (Supported as a main effect, ANOVA p<.0001;
+      interaction only suggestive.)
+   H3 Behavior-policy mechanism: algorithms closer to the logged behavior show
+      lower representation sensitivity. (Descriptive: BC/IQL divergence ~.07,
+      range .05-.07; A2C/CQL ~.64/.73, range .19-.26; r=.935 n=4.)
+   H4 Regime dependence: the divergence-utility relation varies by regime.
+      (Descriptive, n=48: bull +.47, bear -.60, crisis -.58.)
+   Results sections: 4.1 does more information help (no), 4.2 what is encoded
+   (vol nonlinear, direction/drawdown not), 4.3 does quality translate to
+   utility (no simple mapping), 4.4 why algorithm changes sensitivity
+   (divergence + regime).
+
+F. CENTRAL FIGURE relabelled "EMPIRICAL MECHANISM HYPOTHESIS" with
+   "associated with" arrows (not causal):
+   representation -> decision algorithm -> policy divergence (associated with)
+   -> representation sensitivity (varies across) -> market regime -> utility.
+
+ONE-SENTENCE CONTRIBUTION: in offline financial RL, representation properties
+and trading utility are not interchangeable; downstream decision algorithms
+account for the largest share of observed utility variation, and algorithms
+that depart more from logged behavior become more sensitive to the learned
+representation, with the utility of that divergence varying across regimes.
+CAVEAT stays front and centre: findings describe the tested offline
+environment; they do not show market-beating performance or a causal effect of
+divergence.
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

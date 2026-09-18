@@ -56,6 +56,7 @@ class RepLabConfig:
     ac_sigma: float = 0.15
     ent_coef: float = 0.003
     cost_bps: float = 0.0
+    cql_bc_coef: float = 0.5  # TD3+BC-style actor regularizer for CQL(H)
 
     # feature-scaling / latent-dimension sweeps: the causal feature subset fed
     # to the encoder (None -> canonical 8) and a variant tag that keeps sweep

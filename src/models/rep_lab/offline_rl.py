@@ -278,7 +278,10 @@ def train_offline(rep_name: str, algo: str, cfg: RepLabConfig,
     np.random.seed(cfg.seed)
     epochs = epochs or cfg.epochs
     hidden = data.H.shape[1]
-    head = {"BC": BCHead, "A2C": A2CHead, "IQL": IQLHead, "CQL": CQLHead}[algo](hidden)
+    if algo == "CQL":
+        head = CQLHead(hidden, bc_coef=cfg.cql_bc_coef)
+    else:
+        head = {"BC": BCHead, "A2C": A2CHead, "IQL": IQLHead}[algo](hidden)
     opt = torch.optim.Adam(head.parameters(), lr=cfg.lr)
     tr_mask, va_mask, te_mask = (data.split("train"), data.split("val"), data.split("test"))
 
