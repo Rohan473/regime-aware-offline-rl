@@ -1,51 +1,85 @@
 # Representation, decision algorithm, and trading utility in offline financial RL
 
 Draft synthesis of the representation-laboratory thread (PROJECT_NOTES §8).
-This document is written to be lifted into a Results + Discussion section; all
-numbers are on the SPY daily path, train <= 2018, val 2019-2020, test 2021-2024,
-seed 20260814 unless noted.
+Written to be lifted into a Results + Discussion section. All numbers on the
+SPY daily path, train <= 2018, val 2019-2020, test 2021-2024; 10 seeds per cell
+for the representation x algorithm matrix unless noted.
 
-## Contribution
+---
 
-> In offline financial RL, representation properties and trading utility are
-> **not interchangeable**: downstream decision algorithms account for the
-> largest share of observed utility variation, and algorithms that depart more
-> strongly from logged behavior become substantially more sensitive to the
-> learned representation, with the utility of that divergence varying across
-> market regimes.
+## Headline claim (frozen)
 
-The paper separates three questions that are commonly conflated:
+> **Decision algorithm is a stronger determinant of downstream utility than
+> representation identity in the tested setting.**
 
-1. **What information is available** in the input state?
-2. **What information is encoded** by the learned representation?
-3. **What information does the decision algorithm actually exploit?**
+Immediately qualified:
 
-The contribution is explanatory. It is **not** a claim of market-beating
-performance, and none of the learned policies beats buy-and-hold.
+> The formal two-way ANOVA identifies a significant algorithm main effect,
+> whereas representation identity and the representation x algorithm
+> interaction do not reach the conventional 5% significance threshold.
+
+---
+
+## What the experiment establishes vs. what it merely suggests
+
+**Confirmatory result.** Algorithm identity significantly affects downstream
+utility, F(3,144) = 9.05, p < .0001, eta^2 = .142.
+
+**Inferential hierarchy.**
+
+| effect | df | F | p | eta^2 | reading |
+|---|---|---|---|---|---|
+| representation | 3 | 2.44 | .067 | .038 | marginal |
+| **algorithm** | 3 | **9.05** | **<.0001** | **.142** | **robust** |
+| rep x algo | 9 | 1.37 | .206 | .065 | not established |
+| residual (seed) | 144 | - | - | .755 | large |
+
+> The only robust inferential effect in the two-way ANOVA was decision-algorithm
+> identity. Representation identity showed a marginal effect, while the
+> representation x algorithm interaction was not statistically significant.
+> Consequently, we treat the observed relationship between policy divergence,
+> representation sensitivity, and regime-dependent utility as an **empirical
+> mechanism hypothesis** rather than an established causal or interaction
+> effect.
+
+**Separation of evidence types (kept throughout).**
+
+- two-way ANOVA = **formal inference**;
+- 4x4 cell-mean decomposition = **descriptive** (58.0% / 15.6% / 26.4% for
+  algorithm / representation / interaction, no error term);
+- divergence and regime correlations = **mechanism hypothesis**.
+
+---
+
+## Hypothesis status
+
+| Hypothesis | Evidence | Status |
+|---|---|---|
+| H1: More input information improves utility | feature + latent scaling | **Not supported** |
+| H2: Representations encode different information | linear/nonlinear probes, rank, CKA | **Supported descriptively** |
+| H3: Representation properties predict utility | 36-cell correlations + diagnostics | **Not supported as a general mapping** |
+| H4: Policy divergence mediates representation sensitivity | divergence/sensitivity + regime | **Hypothesis-generating, not established** |
+| (confirmatory) Algorithm identity affects utility | two-way ANOVA | **Supported** |
 
 ---
 
 ## 4.1 Does more information produce more useful representations?
 
-We sweep a nested, point-in-time-valid feature bank (4/8/12/16/24/32 features;
-the 8-point is exactly the production state) and the latent dimension
-(4/8/16/32/64/128), 10 seeds each, and measure the supervised direction policy.
+Nested, point-in-time-valid feature bank (4/8/12/16/24/32; the 8-point is the
+production state) and latent dimension (4/8/16/32/64/128), 10 seeds.
 
-- **No monotonic improvement.** The predictive representation's supervised
-  Sharpe *declines* past 16 features (.856 -> .481 at 32) and is flat-to-worse
-  at 128 latent dims; contrastive declines monotonically with latent dim.
-- **Directional information is never recoverable.** Direction AUC is ~.50-.53
-  at every feature count and every latent dimension, and under linear, GBDT,
-  and MLP probes (below).
+- No monotonic improvement: the predictive representation's supervised Sharpe
+  declines past 16 features (.856 -> .481 at 32) and is flat-to-worse at 128
+  latent dims; contrastive declines monotonically with latent dim.
+- Directional information is never recoverable: direction AUC ~.50-.53 at
+  every feature count and latent dimension, and under every probe family.
 
-**Finding.** More information does not buy directional edge; extra capacity can
-hurt. Information is not the bottleneck.
+**Finding.** Increasing the observable feature set does not uncover
+short-horizon directional information or monotonically improve utility.
 
 ---
 
-## 4.2 What does a representation actually encode?
-
-Frozen `h_t` probed with an identical no-lookahead protocol.
+## 4.2 What does a representation encode?
 
 | target | linear | GBDT | MLP |
 |---|---|---|---|
@@ -55,25 +89,20 @@ Frozen `h_t` probed with an identical no-lookahead protocol.
 | vol_20 (R2) | -.007..+.380 | .247-.288 | -.114..+.098 |
 | drawdown_20 (R2) | -.34..-.03 | -.19..-.16 | -.57..-.26 |
 
-- Direction is at chance under **all** probe families: not recoverable by the
-  tested probes (weaker claim than "not present").
-- Volatility is **nonlinearly** encoded: GBDT recovers ~.25-.29 from learned
-  representations where linear probes see ~.03-.05. The earlier "vol collapse"
-  reading was partly a linear-accessibility artifact.
-- Forward 20-day drawdown is **not recoverable by any probe** (a clean null).
-- Representation diagnostics dissociate: effective rank and cross-seed CKA do
-  not track downstream Sharpe (cross-seed CKA even correlates negatively,
-  r = -.23, across the 36 scaling cells).
+- Direction is at chance under all probe families (not recoverable by the
+  tested probes).
+- Volatility is nonlinearly encoded: GBDT recovers ~.25-.29 from learned
+  representations where linear probes see ~.03-.05.
+- Forward 20-day drawdown is not recoverable by any probe.
+- Effective rank and cross-seed CKA do not track downstream Sharpe (CKA
+  correlates negatively, r = -.23, across the 36 scaling cells).
 
-**Finding.** Representation properties dissociate; no single diagnostic is a
-proxy for utility.
+**Finding.** Learned representations differ substantially in what they encode,
+and no single diagnostic is a one-dimensional proxy for utility.
 
 ---
 
 ## 4.3 Does representation quality translate into trading utility?
-
-Frozen representations x four decision algorithms (BC, A2C, IQL, CQL), 10 head
-seeds, on the same Phase-1 transitions and evaluation.
 
 | rep | A2C | BC | IQL | CQL |
 |---|---|---|---|---|
@@ -83,34 +112,22 @@ seeds, on the same Phase-1 transitions and evaluation.
 | contrastive | .527 | .641 | .621 | .709 |
 
 Trivial baselines: **buy-and-hold .784**, constant_mean .784, behavior_mean
-.725, random -.456. **No learned policy exceeds buy-and-hold.**
+.725, random -.456. **None of the learned decision policies exceeds the
+buy-and-hold baseline (.784) in aggregate test Sharpe.**
 
-Two-way ANOVA on the full 4x4x10 observations (typ=2):
+Bootstrap contrasts show the algorithm gap is significant only on the raw and
+auto representations (e.g. raw BC-A2C +.319 [.160, .472]); on the predictive
+representation all algorithms are statistically equivalent. This is consistent
+with the representation mediating the size of the algorithm gap, but the
+interaction itself is not significant.
 
-| source | df | F | p | eta^2 |
-|---|---|---|---|---|
-| representation | 3 | 2.44 | .067 | .038 |
-| **algorithm** | 3 | **9.05** | **<.0001** | **.142** |
-| rep x algo | 9 | 1.37 | .206 | .065 |
-| residual (seed) | 144 | - | - | .755 |
-
-The **algorithm main effect is the only robust inferential result**; the
-representation effect is marginal; the interaction is descriptive (the
-cell-mean decomposition attributes 58.0% / 15.6% / 26.4% to
-algorithm / representation / interaction, but this carries no error term).
-Bootstrap contrasts confirm the algorithm gap is significant only on the raw
-and auto representations (e.g. raw BC-A2C +.319 [.160,.472]); on the predictive
-representation all algorithms are statistically equivalent.
-
-**Finding.** There is no simple representation -> utility mapping. Algorithm
-identity explains the largest share; the representation x algorithm
-interaction is suggestive but not established.
+**Finding.** Representation diagnostics such as effective rank, CKA, and
+predictive probe performance do not provide a reliable one-dimensional proxy
+for downstream trading utility.
 
 ---
 
 ## 4.4 Why does algorithm choice change representation sensitivity?
-
-Per-algorithm representation sensitivity and behavior divergence:
 
 | algorithm | Sharpe range | CV | mean divergence from behavior |
 |---|---|---|---|
@@ -119,60 +136,90 @@ Per-algorithm representation sensitivity and behavior divergence:
 | CQL | .194 | .120 | .732 |
 | A2C | .255 | .218 | .642 |
 
-**Behavior divergence stratifies the algorithms into two regimes.** BC and IQL
-stay within ~0.07 of the logged behavior policy and are nearly
-representation-insensitive (range .05-.07); A2C and CQL depart by .64-.73 and
-are 3-5x more sensitive (range .19-.26). Across the four algorithms the
-association is strong (Pearson r = .935, Spearman .80); with n = 4 this is
-**descriptive only**.
+BC and IQL stay within ~0.07 of the logged behavior policy and are nearly
+representation-insensitive; A2C and CQL depart by .64-.73 and are 3-5x more
+sensitive. Across the four algorithms the association is strong (Pearson
+r = .935, Spearman .80); with n = 4 this is **descriptive only**.
 
-Regime conditioning shows the divergence-utility relation changes sign
-(n = 48): bull **+.47**, bear **-.60**, crisis **-.58**. Regime-conditioned
-Sharpe makes the same point: BC/IQL win defensively (crisis IQL 3.18, BC 2.87
-vs A2C .46), A2C/CQL win in bull (CQL .81, A2C .77 vs BC/IQL ~.36).
+Regime conditioning (n = 48) shows the divergence-utility relation changes
+sign: bull +.47, bear -.60, crisis -.58. Regime-conditioned Sharpe makes the
+same point: BC/IQL win defensively (crisis IQL 3.18, BC 2.87 vs A2C .46),
+A2C/CQL win in bull (CQL .81, A2C .77 vs BC/IQL ~.36).
 
-**Finding (hypothesis).** The degree of departure from behavior is associated
-with representation sensitivity, and the value of that departure is
-regime-dependent.
+At the seed level the divergence-utility association is weak and inconsistent
+in sign (pooled r = .13, p = .38; per-algorithm CQL +.96, IQL -.76), so the
+mechanism is not established as causal.
+
+**Finding (hypothesis).** Behavior-policy divergence and regime conditioning
+provide a plausible explanation for why some algorithms appear more
+representation-sensitive, but this remains a hypothesis requiring larger and
+more controlled experiments.
 
 ---
 
-## Central figure - empirical mechanism hypothesis
+## Figure 1 - empirical observations and the proposed mechanism
 
 ```
-Representation
-     |  changes what information is available
-     v
-Decision algorithm
-     |  determines degree of departure from behavior
-     v
-Policy divergence
-     |  associated with
-     v
-Representation sensitivity
-     |  varies across
-     v
-Market regime
-     v
-Observed trading utility
+                    EMPIRICAL OBSERVATIONS
+                            |
+        +-------------------+-------------------+
+        v                   v                   v
+ Representation      Decision algorithm    Market regime
+        |                   |                   |
+        |                   v                   |
+        |           Policy divergence           |
+        |                   |                   |
+        +---------+---------+                   |
+                  v                             v
+          Representation               Regime-dependent
+             sensitivity                    utility
+                  |                             |
+                  +-------------+---------------+
+                                v
+                      Research hypothesis
 ```
 
-Arrows are associations, not identified causal effects.
+Solid arrows denote observed associations; dashed arrows in the manuscript
+denote the proposed (untested) mechanism.
+
+> **Empirical mechanism hypothesis.** Observed behavior-policy divergence is
+> associated at the algorithm level with representation sensitivity, while
+> regime-conditioned analyses suggest that the utility of divergence may
+> depend on market regime. These relationships are descriptive and do not
+> establish mediation or causality.
+
+---
+
+## Discussion - seed variability and statistical power
+
+The residual (seed-within-cell) term accounts for eta^2 = .755 of the variance.
+This explains why the interaction does not reach significance despite a
+non-trivial descriptive cell-mean interaction component, and yields a
+methodological observation:
+
+> In offline financial RL, random-seed variability can be sufficiently large
+> that apparently meaningful representation x algorithm differences are
+> difficult to establish with conventional inferential tests.
+
+Ten seeds per cell provide repeated estimates of stochastic variability but may
+still be insufficient to detect moderate interaction effects given the high
+between-seed variance. We do not attempt to rescue the interaction
+statistically (no seed selection, no representation cherry-picking, no
+alternative specifications).
 
 ---
 
 ## Limitations (front and centre)
 
 - **No market-beating result.** Buy-and-hold (.784) exceeds every learned
-  policy; 2022 is negative for all algorithms. The paper explains behaviour, it
-  does not propose a profitable strategy.
-- **No causality.** The divergence -> sensitivity association is n = 4
-  (algorithms); the seed-level divergence-utility association is weak and
-  inconsistent in sign (pooled r = .13, p = .38). The regime correlations
-  (n = 48) are the more robust but still descriptive evidence.
-- **Interaction is not significant** (p = .21); seed noise dominates (eta^2 =
-  .755). Treat "algorithm mediation" as a significant main effect and the
-  interaction as a hypothesis.
+  policy; 2022 is negative for all algorithms. The contribution is
+  understanding the mechanics and evaluation of offline financial RL, not a
+  profitable trading strategy.
+- **No causality.** Divergence -> sensitivity is n = 4 (algorithms); the
+  seed-level association is weak and inconsistent (r = .13, p = .38). Regime
+  correlations (n = 48) are descriptive.
+- **Interaction not established** (p = .21); seed noise dominates (eta^2 =
+  .755).
 - **Scope.** One encoder family (GRU), SPY + US macro features, one offline
   transition dataset; cross-market transfer (SPY -> CSI300) is weak and not
   separable from noise.
@@ -181,10 +228,11 @@ Arrows are associations, not identified causal effects.
 
 ## Appendix - CQL implementation and collapse
 
-CQL(H) with a deterministic actor can saturate to a constant position. With no
-actor regularization, 30-60% of seeds collapse (action std < .01); adding the
-TD3+BC-style actor term `bc_coef * MSE(pi(h), a_logged)` (bc_coef = .5) removes
-collapse entirely and lifts test Sharpe.
+CQL(H) with a deterministic actor experienced action collapse (action
+standard deviation < .01) in 30-60% of seeds; adding the TD3+BC-style actor
+term `bc_coef * MSE(pi(h), a_logged)` (bc_coef = .5) eliminated observed
+collapse and materially improved performance, most strikingly for the auto
+representation (.256 -> .768).
 
 | rep | bc=0 collapse | bc=0 Sharpe | bc=.5 collapse | bc=.5 Sharpe |
 |---|---|---|---|---|
@@ -193,5 +241,6 @@ collapse entirely and lifts test Sharpe.
 | predictive | .40 | .232 | .00 | .676 |
 | contrastive | .50 | .291 | .00 | .709 |
 
-The main-table CQL uses bc_coef = .5; CQL's behaviour is therefore not evidence
-about conservative Q-learning per se but about a regularized variant.
+This demonstrates substantial sensitivity of CQL to actor regularization under
+our implementation and dataset; it is not a general claim that CQL is unstable.
+The main-table CQL uses bc_coef = .5.

@@ -4540,6 +4540,64 @@ CAVEAT stays front and centre: findings describe the tested offline
 environment; they do not show market-beating performance or a causal effect of
 divergence.
 
+### 8.13 FROZEN CLAIMS (2026-09-15) - STOP EXPERIMENTING, START WRITING
+-------------------------------------------------------------------------------
+Experiment design is frozen. Remaining risk is OVERCLAIMING, not a missing
+experiment. Paper-ready synthesis: paper/representation_utility_synthesis.md;
+conceptual figure: paper/rep_mechanism_schematic.png (solid = observed,
+dashed = proposed mechanism).
+
+HEADLINE (abstract's strongest statement):
+  "Decision algorithm is a stronger determinant of downstream utility than
+  representation identity in the tested setting."
+  Qualified: "The formal two-way ANOVA identifies a significant algorithm main
+  effect, whereas representation identity and the representation x algorithm
+  interaction do not reach the conventional 5% significance threshold."
+
+CONFIRMATORY RESULT: algorithm identity affects downstream utility,
+  F(3,144)=9.05, p<.0001, eta^2=.142.
+
+EVIDENTIAL HIERARCHY (keep the separation):
+  formal inference       = two-way ANOVA (algorithm robust; representation
+                           marginal p=.067; interaction NOT established p=.206;
+                           residual seed eta^2=.755)
+  descriptive            = 4x4 cell-mean decomposition (58.0/15.6/26.4)
+  mechanism hypothesis   = divergence (r=.935 n=4) and regime (n=48) correlations
+
+HYPOTHESIS STATUS:
+  H1 more input info improves utility ............ NOT SUPPORTED
+  H2 representations encode different info ....... SUPPORTED (descriptive)
+  H3 rep properties predict utility .............. NOT SUPPORTED (general mapping)
+  H4 divergence mediates rep sensitivity ......... HYPOTHESIS, not established
+  (confirmatory) algorithm affects utility ....... SUPPORTED
+
+EXACT WORDING TO USE:
+  - "The only robust inferential effect in the two-way ANOVA was decision-
+    algorithm identity. Representation identity showed a marginal effect, while
+    the representation x algorithm interaction was not statistically
+    significant. Consequently, we treat the observed relationship between
+    policy divergence, representation sensitivity, and regime-dependent utility
+    as an empirical mechanism hypothesis rather than an established causal or
+    interaction effect."
+  - "In offline financial RL, random-seed variability can be sufficiently large
+    that apparently meaningful representation x algorithm differences are
+    difficult to establish with conventional inferential tests." (10 seeds give
+    repeated estimates but power for interactions remains limited.)
+  - CQL: "demonstrates substantial sensitivity of CQL to actor regularization
+    under our implementation and dataset" -- NOT "CQL is unstable".
+  - Buy-and-hold .784 exceeds every learned policy; report prominently.
+
+DO NOT (to preserve credibility):
+  - call the cell-mean decomposition "variance explained";
+  - present the r=.935 (n=4) result as the primary statistical test;
+  - call divergence -> sensitivity causal or "mediation";
+  - rescue the interaction by seed selection / representation cherry-picking /
+    specification search / pooling seeds to inflate n;
+  - claim market-beating performance.
+
+NEXT WORK: Results -> Discussion -> figures -> references -> reviewer-proof
+wording -> submission.
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------
