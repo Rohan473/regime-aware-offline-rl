@@ -58,7 +58,7 @@ utility, F(3,144) = 9.05, p < .0001, eta^2 = .142.
 | H1: More input information improves utility | feature + latent scaling | **Not supported** |
 | H2: Representations encode different information | linear/nonlinear probes, rank, CKA | **Supported descriptively** |
 | H3: Representation properties predict utility | 36-cell correlations + diagnostics | **Not supported as a general mapping** |
-| H4: Policy divergence mediates representation sensitivity | divergence/sensitivity + regime | **Hypothesis-generating, not established** |
+| H4: Policy divergence mediates representation sensitivity | divergence/sensitivity + regime | **Regime interaction supported; seed-level main effect not supported** |
 | (confirmatory) Algorithm identity affects utility | two-way ANOVA | **Supported** |
 
 ---
@@ -154,6 +154,27 @@ mechanism is not established as causal.
 provide a plausible explanation for why some algorithms appear more
 representation-sensitive, but this remains a hypothesis requiring larger and
 more controlled experiments.
+
+**Pre-specified follow-up test (single run, frozen design).** To move beyond
+the n = 4 algorithm-level observation, we fit, on the existing seed-level data
+(no new training),
+
+- Stage 1 (primary): regime-specific utility regressed on divergence, regime,
+  and their interaction, with representation and algorithm as controls and
+  standard errors clustered by (rep, algo, seed) — n = 144.
+- Stage 2 (secondary): seed-level utility on divergence, controlling for
+  representation and algorithm — n = 48.
+
+Stage 1 is **significant**: the divergence × regime interaction is large
+(joint chi2(2) = 80.9, p = 2.7e-18); the divergence–utility slope is positive in
+bull (+1.08, p < .0001) and negative in crisis (≈ -1.9, p = .0002). Stage 2 is
+**null**: divergence does not predict utility once algorithm identity is
+controlled (b1 = +.135, p = .446; JS variant +.264, p = .567).
+
+Verdict: *evidence is consistent with behavior-policy divergence being a
+regime-dependent moderator of representation utility.* Divergence alone is not
+a predictor; the mechanism operates through the regime interaction, which
+survives a granular clustered test.
 
 ---
 

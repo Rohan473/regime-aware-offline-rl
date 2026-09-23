@@ -4598,6 +4598,44 @@ DO NOT (to preserve credibility):
 NEXT WORK: Results -> Discussion -> figures -> references -> reviewer-proof
 wording -> submission.
 
+### 8.14 PRE-SPECIFIED H4 TEST (one run, frozen design) (2026-09-15)
+-------------------------------------------------------------------------------
+A single pre-registered statistical follow-up (no new training, no spec
+search) to test whether the divergence mechanism survives beyond the n=4
+algorithm-level correlation. Code: scripts/rep_h4_test.py. Outputs:
+data/interpret/rep_h4.csv, paper/rep_divergence_regime.png.
+
+SPEC (fixed before running):
+  Stage 1 (PRIMARY): U_g = b0 + b1*D + b2*G + b3*(D x G) + C(rep) + C(algo) + e
+      on regime-specific utility, n=144 (48 units x 3 regimes), cluster SE by
+      (rep, algo, seed). Primary coefficient b3 (D x G).
+  Stage 2 (SECONDARY): U = b0 + b1*D + C(rep) + C(algo) + e, n=48 (seed-level).
+      Variant: JS divergence in place of D (pre-specified alternate measure).
+
+RESULTS:
+  Stage 1 PRIMARY = SIGNIFICANT. Joint D x regime chi2(2) = 80.9, p = 2.7e-18.
+      Bull divergence slope +1.08 (p<.0001); crisis slope = bull - 3.01
+      (p=.0002), i.e. ~ -1.9. The utility of departing from the behavior
+      policy is strongly REGIME-DEPENDENT: positive in bull, negative in
+      crisis/bear. (Regime main effect also large - bear/crisis are harder.)
+  Stage 2 SECONDARY = NULL. Seed-level divergence, controlling rep + algo:
+      b1 = +0.135, p = .446 (JS variant +0.264, p = .567).
+
+VERDICT (per the stopping rule - one clean answer, not a fishing expedition):
+  "We find evidence consistent with behavior-policy divergence being a
+  REGIME-DEPENDENT moderator of representation utility."
+  Divergence alone does NOT predict utility once algorithm identity is
+  controlled (Stage 2 null); the mechanism operates through the regime
+  interaction, which survives a granular clustered test (Stage 1 significant).
+  => H4 is upgraded from hypothesis-generating to: primary interaction SUPPORTED
+  (inferential), seed-level main effect NOT supported. Manuscript Discussion
+  now gives the regime-interaction a prominent place with its own figure
+  (paper/rep_divergence_regime.png), while keeping the stage-2 null explicit.
+
+CAVEATS: OLS associations, clustered SEs, not causal; regime labels are the
+Phase-1 bull/bear/crisis; divergence is measured on the test split at dim=128;
+design is frozen - no further specification search.
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

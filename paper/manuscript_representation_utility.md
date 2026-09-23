@@ -30,9 +30,11 @@ formal two-way ANOVA over 4 representations × 4 decision algorithms × 10 seeds
 **decision-algorithm identity is the only robust inferential effect**
 (F(3,144) = 9.05, p < .0001, η² = .142); representation identity is marginal
 (p = .067) and the representation × algorithm interaction is not statistically
-established (p = .206). Behaviour-policy divergence and regime conditioning
-provide a plausible, but descriptive, explanation for why some algorithms
-appear more representation-sensitive.
+established (p = .206). A pre-specified follow-up test shows the utility of
+behaviour-policy divergence is strongly regime-dependent (divergence × regime
+interaction χ²(2) = 80.9, p = 2.7e-18: positive in bull, negative in
+bear/crisis), while divergence alone does not predict utility once algorithm
+identity is controlled (p = .446).
 
 **Decision algorithm is a stronger determinant of downstream utility than
 representation identity in the tested setting.** None of the learned policies
@@ -186,9 +188,12 @@ and random actions.
   explained).
 - **Bootstrap**: 10,000-resample percentile CIs for cell means and for key
   contrasts.
-- **Mechanism (hypothesis-generating)**: behaviour-policy divergence
-  (mean |a_policy − a_behaviour|), action-distribution JS divergence,
-  divergence–sensitivity association, and regime-conditioned utility.
+- **Mechanism (pre-specified, one run)**: a primary test of the divergence ×
+  regime interaction on regime-specific utility (n = 144, clustered SEs,
+  representation and algorithm as controls) and a secondary seed-level test of
+  divergence on utility (n = 48, same controls), using behaviour-policy
+  divergence (mean |a_policy − a_behaviour|) and action-distribution JS
+  divergence.
 
 ---
 
@@ -281,9 +286,28 @@ A2C/CQL win in bull (CQL .81, A2C .77 vs BC/IQL ≈.36). Per-year, all
 algorithms succeed in 2021/2023/2024 and fail together in 2022 (the bear year),
 i.e. degradation is regime-driven, not representation-driven.
 
+**Pre-specified follow-up test (single run, frozen design).** To test whether
+this mechanism survives beyond the n = 4 algorithm-level observation, we fit,
+on the existing seed-level data (no new training), two pre-registered models:
+
+- Stage 1 (primary): regime-specific utility on divergence, regime, and their
+  interaction, with representation and algorithm as controls and standard
+  errors clustered by (rep, algo, seed) — n = 144;
+- Stage 2 (secondary): seed-level utility on divergence, controlling for
+  representation and algorithm — n = 48.
+
+Stage 1 is **significant**: the divergence × regime interaction is large
+(joint χ²(2) = 80.9, p = 2.7e-18); the divergence–utility slope is positive in
+bull (+1.08, p < .0001) and negative in crisis (≈ −1.9, p = .0002). Stage 2 is
+**null**: divergence does not predict utility once algorithm identity is
+controlled (β₁ = +.135, p = .446; JS-divergence variant +.264, p = .567).
+
 Behaviour-policy divergence and regime conditioning provide a plausible
-explanation for why some algorithms appear more representation-sensitive, but
-this remains a hypothesis.
+explanation for why some algorithms appear more representation-sensitive. The
+granular test confirms the regime-dependence (evidence is consistent with
+divergence being a regime-dependent moderator of representation utility) while
+showing that divergence alone does not predict utility once algorithm identity
+is controlled.
 
 ---
 
@@ -305,9 +329,13 @@ We keep three levels of evidence strictly separate throughout.
 - Representation-sensitivity differences; feature and latent scaling patterns;
   probe results; cross-market observations.
 
-**Level 3 — hypothesis-generating.**
-- Behaviour-policy divergence ↔ representation sensitivity (r = .935, n = 4).
-- Divergence ↔ regime-dependent utility (bull +.47, bear −.60, crisis −.58).
+**Level 3 — mechanism hypothesis, partially tested.**
+- Behaviour-policy divergence ↔ representation sensitivity (r = .935, n = 4;
+  descriptive).
+- Divergence ↔ regime-dependent utility: the pre-specified interaction test is
+  **significant** (χ²(2) = 80.9, p = 2.7e-18; positive in bull, negative in
+  bear/crisis), while the seed-level divergence main effect, controlling for
+  algorithm identity, is **not** (p = .446).
 - The proposed mechanism in Figure 1.
 
 **Headline.** Decision algorithm is a stronger determinant of downstream
@@ -378,6 +406,9 @@ figure) denote the proposed, untested mechanism.
 3. The representation × algorithm **interaction was not statistically
    established**.
 4. Divergence analyses are **associational**, not mediation or causal evidence.
+   The regime-interaction survives a granular clustered test, but divergence as
+   a seed-level main effect does not (p = .446); the divergence–sensitivity
+   association is n = 4.
 5. **No learned policy exceeded buy-and-hold Sharpe = .784**; 2022 is negative
    for all algorithms.
 6. **Cross-market CSI300 results** were close to unsolvable under the tested
@@ -400,10 +431,14 @@ marginal and the representation × algorithm interaction is not statistically
 established. Representation diagnostics—probe performance, effective rank,
 cross-seed stability—do not provide a reliable one-dimensional proxy for
 trading utility. Behaviour-policy divergence and regime conditioning offer a
-plausible mechanism for why some algorithms are more representation-sensitive,
-but this remains a hypothesis. The findings describe the tested offline
-environment and do not demonstrate market-beating performance or a causal
-effect of policy divergence.
+plausible mechanism for why some algorithms are more representation-sensitive.
+A pre-specified granular test supports the regime-dependent component of this
+mechanism (divergence × regime interaction, p = 2.7e-18) but not divergence as
+a main effect once algorithm identity is controlled (p = .446); the
+divergence–sensitivity association itself remains descriptive at the algorithm
+level. The findings describe the tested offline environment and do not
+demonstrate market-beating performance or a causal effect of policy
+divergence.
 
 ---
 
