@@ -59,6 +59,7 @@ utility, F(3,144) = 9.05, p < .0001, eta^2 = .142.
 | H2: Representations encode different information | linear/nonlinear probes, rank, CKA | **Supported descriptively** |
 | H3: Representation properties predict utility | 36-cell correlations + diagnostics | **Not supported as a general mapping** |
 | H4: Policy divergence mediates representation sensitivity | divergence/sensitivity + regime | **Regime interaction supported; seed-level main effect not supported** |
+| H5: A policy can learn when to deviate | regime-gated policy (§4.5) | **Supported constructively** (beats BC and A2C, matches oracle) |
 | (confirmatory) Algorithm identity affects utility | two-way ANOVA | **Supported** |
 
 ---

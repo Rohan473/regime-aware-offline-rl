@@ -4636,6 +4636,50 @@ CAVEATS: OLS associations, clustered SEs, not causal; regime labels are the
 Phase-1 bull/bear/crisis; divergence is measured on the test split at dim=128;
 design is frozen - no further specification search.
 
+### 8.15 H5 - REGIME-AWARE, UNCERTAINTY-CONSTRAINED OFFLINE RL (2026-09-15)
+-------------------------------------------------------------------------------
+Directed constructive test of the H4 mechanism: can an offline RL system LEARN
+when it is safe to deviate from observed behavior and when to stay conservative?
+Pipeline: market window -> frozen h_t -> regime/risk estimate -> adaptive
+divergence gate -> action. Code: src/models/rep_lab/gated.py,
+scripts/rep_gated.py, tests/test_gated.py (suite 94 pass).
+
+MODEL: a_t = clip(a_beh_t + lambda_t * d_t), with
+  a_beh_t = per-date behaviour-mean action (the conservative anchor = BC),
+  lambda_t = sigmoid(g(h_t)) in (0,1), d_t = tanh(p(h_t)) in (-1,1),
+  regime estimate = multinomial logistic on h_t (train-only) -> risk =
+  P(bear)+P(crisis). Training: offline actor-critic reward = a*market_ret,
+  value bootstrap, plus the UNCERTAINTY CONSTRAINT
+  rho * mean(lambda_t * risk_t)  (push lambda down in risky states).
+
+COMPARATORS (same frozen reps/transitions):
+  behaviour_clone (lambda=0), A2C (full deviation), gated_rho0 (adaptive, no
+  penalty), gated_rho1 (proposed, rho=1), oracle (lambda=1 in bull else .1 on
+  A2C's deviation, TRUE test regime labels = look-ahead upper bound).
+
+RESULTS (test Sharpe, mean +/- std over 10 seeds):
+  rep          A2C       behaviour  gated_rho0  gated_rho1  oracle
+  predictive   .617(.09) .725       .782(.23)   .757(.06)   .758(.12)
+  contrastive  .527(.39) .725       .784(.19)   .759(.06)   .781(.55)
+  lambda_mean (gated): rho0 ~.55-.63 (aggressive), rho1 ~.17-.19 (conservative)
+  lambda by regime (gated_rho1): bull .19-.20 > crisis .12-.15 > bear .09-.13
+  regime Sharpe (predictive, gated_rho1): crisis 3.59, bear 1.38 (vs A2C 1.56/
+  .83 - the constraint protects the risky regimes); bull .46 (below gated_rho0
+  .68 and A2C .57 - the constraint costs some bull upside).
+
+VERDICT: YES - the system learns when to deviate. Adaptive gating beats BOTH
+fixed extremes (behaviour_clone .725 and A2C .527-.617) and matches the
+look-ahead oracle (.758-.781) with the LOWEST seed variance (std .06 vs A2C
+.09-.39). The learned lambda is regime-dependent (highest in bull, lowest in
+bear) exactly as H4 predicts. The uncertainty constraint trades a little bull
+upside for large bear/crisis protection and much lower variance - a sensible
+risk-averse outcome.
+
+CAVEATS: gains over behaviour_clone are modest and at/below buy-and-hold .784;
+regime head is a single logistic on h_t (a stronger head may help); oracle uses
+true test regime labels (look-ahead); rho not tuned (frozen); lambda values are
+small overall (the model is mostly conservative).
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

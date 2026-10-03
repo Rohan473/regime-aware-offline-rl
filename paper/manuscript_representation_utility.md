@@ -309,6 +309,43 @@ divergence being a regime-dependent moderator of representation utility) while
 showing that divergence alone does not predict utility once algorithm identity
 is controlled.
 
+### 4.5 Can the mechanism be exploited? A regime-gated policy
+
+If divergence is useful in bull and costly in bear/crisis, an offline RL policy
+should be able to *learn* when to deviate. We test this constructively with a
+regime-gated policy
+
+a_t = clip(a_beh_t + λ_t · d_t),
+
+where a_beh_t is the behaviour-mean action (the conservative anchor), d_t is a
+learned deviation, λ_t = σ(g(h_t)) ∈ (0,1) is a learned safety gate, and a
+logistic regime head on h_t (train-only) supplies risk_t = P(bear) + P(crisis).
+Training is the same offline actor–critic as the matrix, plus an uncertainty
+constraint ρ·E[λ_t · risk_t] that pushes the gate down in risky states. We
+compare against behaviour cloning (λ = 0), unconstrained A2C (full deviation),
+an unconstrained adaptive gate (ρ = 0), and a look-ahead oracle gate (λ = 1 in
+bull, .1 otherwise), all on the same frozen representations and transitions.
+
+| policy (predictive / contrastive) | test Sharpe, mean (std), 10 seeds |
+|---|---|
+| behaviour clone (λ = 0) | .725 |
+| A2C (full deviation) | .617 (.09) / .527 (.39) |
+| gated, ρ = 0 | .782 (.23) / .784 (.19) |
+| **gated, ρ = 1 (proposed)** | **.757 (.06) / .759 (.06)** |
+| oracle (look-ahead) | .758 (.12) / .781 (.55) |
+
+The learned gate is regime-dependent, as H4 predicts: mean λ is highest in bull
+(.19–.20) and lowest in bear (.09–.13). The uncertainty constraint protects the
+risky regimes (crisis Sharpe 3.59 vs A2C 1.56; bear 1.38 vs A2C .83) at a small
+cost in bull, and the proposed policy beats both fixed extremes with the lowest
+seed variance (std ≈ .06 vs .09–.39) and matches the look-ahead oracle.
+
+**Finding (constructive support for the mechanism).** An offline RL system can
+learn when it is safe to deviate from observed behavior and when to stay
+conservative: adaptive gating dominates both the conservative (BC) and the
+fully-deviating (A2C) endpoints and approaches the oracle. Gains over behaviour
+cloning are modest and at/below the buy-and-hold baseline.
+
 ---
 
 ## 5. Discussion
@@ -350,7 +387,12 @@ which increasingly informative or stable representations necessarily produce
 better trading policies. Instead, they indicate that downstream decision
 optimization is an important determinant of observed utility, while the
 apparent dependence of utility on representation varies substantially across
-algorithms and remains a hypothesis requiring further investigation.
+algorithms and remains a hypothesis requiring further investigation. The
+regime-gated policy of §4.5 provides constructive evidence for the mechanism:
+an offline policy can learn to scale its divergence by a regime estimate,
+beating both the conservative (BC) and fully-deviating (A2C) endpoints and
+matching a look-ahead oracle — while leaving the utility gain modest and at/below
+the buy-and-hold baseline.
 
 ### 5.2 Seed variability and statistical power
 
