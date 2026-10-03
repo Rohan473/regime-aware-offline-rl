@@ -4816,6 +4816,37 @@ CAVEATS: max-Sharpe objective is fit on train, selected on val (weight decay +
 modest and on 2021-2024; no transaction cost in the exposure table (turnover
 tiny for smooth exposure); CSI300 remains unsolvable.
 
+### 8.19 EXPOSURE ATTRIBUTION - WHICH h_t INFORMATION DRIVES THE TIMING? (2026-09-15)
+-------------------------------------------------------------------------------
+scripts/rep_exposure_attribution.py: for the mean 3-seed exposure policy, on
+test, compute corr(exposure, driver) + OLS standardized betas + per-regime
+exposure perturbation (e +/- 0.1). Output: rep_exposure_attribution.csv.
+
+KEY NUMBERS (SPY / NIFTY):
+  corr(e, r_next)          +.049 / -.008   <-- NO directional component
+  corr(e, realized vol z)  -.29 / -.34     <-- de-risk ahead of high vol
+  corr(e, |r_next|)        -.10 / -.26
+  corr(e, fwd vol 5d)      -.03 / -.21
+  corr(e, OOD Mahalanobis) -.25 / -.33     <-- de-risk when out-of-distribution
+  corr(e, drawdown state)  +.03 / +.66     <-- market-specific (NIFTY adds into
+                                              recoverable drawdowns)
+  OLS std beta: vol20 -.040/-.014, ood -.022/-.005, drawdown60 -.038/+.099,
+  p_bull/risk ~ .00-.03 (regime probability contributes little)
+  Perturbation (Sharpe change for e+0.1): SPY bull +.021, bear -.047, crisis
+  ~0; NIFTY crisis +.042, bear -.041 -> exposure timing pays where the market
+  recovers (bull on SPY, crisis on NIFTY) and the reduced exposure protects
+  bear.
+
+CONCLUSION (the identified decision-relevant pathway):
+  The exposure improvement comes from LATENT RISK/VOLATILITY (and drawdown-
+  state) information, NOT from directional information and NOT primarily from
+  regime probabilities: corr(e, r_next) ~ 0 while corr(e, vol/|r|/fwd_vol/OOD)
+  are consistently negative. This operationalizes "predictive skill != risk-
+  management skill": h_t -> risk/regime state -> e_t, not h_t -> direction.
+  Wording: "Under the tested protocol, adaptive exposure improves risk-adjusted
+  utility without measurable directional skill." (NOT "extracts edge purely
+  from h_t").
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

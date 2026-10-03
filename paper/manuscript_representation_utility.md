@@ -405,21 +405,61 @@ Three findings:
 1. **Holding at the learned mean exposure reproduces buy-and-hold Sharpe
    exactly** (Sharpe is scale-invariant under constant exposure). Any Sharpe
    gain must therefore come from *timing*, not from being underexposed.
-2. **Adaptive exposure beats buy-and-hold Sharpe without any directional
-   head** on both positive-drift markets (SPY .909 vs .784; NIFTY 1.033 vs
-   1.006) while roughly halving max drawdown. The exposure policy extracts
-   risk-adjusted edge purely from h_t (volatility/regime timing) — it never
-   predicts the sign of the return.
-3. **The regime-constrained variant is the most conservative** (mean exposure
-   is highest in bull and lowest in bear/crisis) with the lowest drawdown, at
-   a small Sharpe cost. On CSI300 the hostile period defeats any exposure
-   policy (≈ buy-and-hold, negative).
+2. **Under the tested protocol, adaptive exposure improves risk-adjusted
+   utility without measurable directional skill.** The policy has no
+   directional head, and the exposure is uncorrelated with next-day returns
+   (corr(e_t, r_{t+1}) ≈ 0 on both SPY and NIFTY). It beats buy-and-hold on
+   Sharpe on both positive-drift markets (SPY .909 vs .784; NIFTY 1.033 vs
+   1.006) while roughly halving max drawdown.
+3. **The regime-constrained variant is a risk-control knob**: it reduces
+   downside exposure at the expense of some risk-adjusted efficiency (SPY .819
+   vs .909, maxDD −.109 vs −.114; NIFTY .971 vs 1.033, maxDD −.046 vs −.081) —
+   it is not presented as superior, but as the explicit trade-off lever.
 
 **Finding.** An uncertainty- and regime-aware exposure policy can improve the
 risk/return trade-off without requiring directional skill, beating buy-and-hold
 on Sharpe while reducing drawdown on positive-drift markets. This is the
 constructive complement to the §4.6 diagnosis: the exploitable margin is in
 exposure/risk control, not in direction prediction.
+
+**Boundary condition (CSI300).** The exposure policy reproduces buy-and-hold
+there (−.355 ≈ −.352): exposure timing can improve the risk/return trade-off
+when exploitable positive-drift/risk-timing structure exists, but it cannot
+overcome an intrinsically unfavorable evaluation period.
+
+### 4.8 What information drives exposure timing? An attribution
+
+We ask which information inside h_t the exposure decision responds to,
+separating risk-management skill from directional skill (SPY, NIFTY; mean
+exposure policy over 3 seeds):
+
+| driver | SPY corr(e,·) | SPY OLS β | NIFTY corr(e,·) | NIFTY OLS β |
+|---|---|---|---|---|
+| next-day return | **+.05** | – | **−.01** | – |
+| realized vol (z) | **−.29** | −.040 | **−.34** | −.014 |
+| |next-day return| | −.10 | – | −.26 | – |
+| forward 5d vol | −.03 | – | −.21 | – |
+| OOD distance (Mahalanobis) | −.25 | −.022 | −.33 | −.005 |
+| drawdown state | +.03 | −.038 | **+.66** | +.099 |
+| regime P(bull) | +.05 | −.005 | +.01 | −.028 |
+
+Two clear patterns:
+
+1. **No directional component.** The exposure is uncorrelated with next-day
+   returns (SPY +.05, NIFTY −.01), confirming the policy does not use
+   directional information.
+2. **Risk timing, not regime labels.** Exposure is reduced ahead of
+   high-volatility/risky periods — negative loadings on realized vol,
+   |next-day return|, forward 5-day volatility, and OOD distance in both
+   markets — while the regime-probability inputs contribute little. Drawdown
+   state is used market-specifically (NIFTY increases exposure into drawdowns
+   that recover; SPY slightly reduces it).
+
+**Finding (identified pathway).** The exposure improvement comes from a
+specific decision-relevant representation pathway — latent risk/volatility
+(and drawdown-state) information is useful for exposure control even when
+directional information is unavailable. This is the difference between
+predictive skill and risk-management skill made operational.
 
 **Cross-market (CSI300, NIFTY).** The gate consistently learns a
 bull-vs-bear/crisis asymmetry in every market (λ higher in bull), but whether
