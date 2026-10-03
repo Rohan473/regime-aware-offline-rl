@@ -4680,6 +4680,43 @@ regime head is a single logistic on h_t (a stronger head may help); oracle uses
 true test regime labels (look-ahead); rho not tuned (frozen); lambda values are
 small overall (the model is mostly conservative).
 
+### 8.16 H5 CROSS-MARKET - GATED POLICY ON CSI300 AND NIFTY (2026-09-15)
+-------------------------------------------------------------------------------
+Ran the regime-gated policy (8.15) on the two other markets with the same
+protocol (10 seeds; market-native predictive/contrastive encoders; NIFTY
+encoders trained fresh with tag=nifty). CSI300 and NIFTY processed dirs carry
+the same schema (32 policies, bull/bear/crisis). scripts/rep_gated.py now takes
+--market {spy,csi300,nifty} and merges results into data/interpret/rep_gated.csv
+(all three markets co-exist; 1464 rows).
+
+OVERALL TEST SHARPE (mean over 10 seeds):
+  market  rep           A2C    behaviour  gated_rho0  gated_rho1  oracle
+  spy     predictive   .617    .725       .782        .757        .758
+  spy     contrastive  .527    .725       .784        .759        .781
+  csi300  predictive   .137   -.314       -.121       -.354       -.278
+  csi300  contrastive -.227   -.314       -.370       -.340       -.351
+  nifty   predictive   .506    .534        .166        .482        .311
+  nifty   contrastive  .705    .534        .783        .622        .547
+
+LEARNED GATE (gated_rho1 lambda by regime, mean over seeds) - bull > bear/crisis
+  IN EVERY MARKET: spy bull .19-.20 > crisis .12-.15 > bear .09-.13;
+  csi300 bull .11-.17 > crisis .09-.16 > bear .08-.14; nifty bull .25-.27 >
+  bear/crisis .14-.20. The gate consistently learns "deviate more in bull".
+
+VERDICT (honest, market-dependent):
+  1. SPY: the gate works - beats behaviour (.725) and A2C, matches the oracle.
+  2. CSI300: the market is unsolvable in 2021-2024 (all variants negative;
+     bull/bear negative, crisis rally strong). Gating cannot create utility.
+  3. NIFTY: gated_rho0 (contrastive) is best (.783); gated_rho1 (.622) beats
+     behaviour (.534) but LOSES to A2C (.705) because NIFTY's crisis deviation
+     PAYS (A2C crisis 2.86 vs behaviour -0.71) - the gate's "bear/crisis =
+     risky, shrink lambda" prior is WRONG for NIFTY and suppresses its crisis
+     upside.
+  => The gate always LEARNS a bull/bear asymmetry, but whether that prior is
+  CORRECT is market-specific. "When it is safe to deviate" is not a universal
+  rule; the gate reflects the training market's regime structure. This is the
+  cross-market limit of the H5 mechanism.
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

@@ -74,7 +74,8 @@ def load_offline_rep(rep_name: str, cfg: RepLabConfig,
     from src.data.loaders import REPO_ROOT
     from src.models.rep_lab.data import load_rep_data
 
-    dataset = pd.read_parquet(REPO_ROOT / "data" / "processed" / "offline_dataset.parquet")
+    processed_dir = getattr(cfg, "processed_dir", None) or (REPO_ROOT / "data" / "processed")
+    dataset = pd.read_parquet(processed_dir / "offline_dataset.parquet")
     if policies is None:
         policies = tuple(sorted(dataset["policy"].unique()))
     if max_policies is not None and len(policies) > max_policies:

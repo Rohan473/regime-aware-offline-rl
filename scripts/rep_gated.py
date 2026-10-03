@@ -42,10 +42,16 @@ OUT_DIR = ROOT / "data" / "interpret"
 SEEDS = [20260814, 111, 222, 333, 444, 555, 666, 777, 888, 999]
 REPS = ["predictive", "contrastive"]
 REGIMES = ["bull", "bear", "crisis"]
+MARKETS = {
+    "spy": (None, ""),
+    "csi300": (REPO_ROOT / "data" / "processed_csi300_backup", "csi"),
+    "nifty": (REPO_ROOT / "data" / "processed_nifty_backup", "nifty"),
+}
 
 
-def _regime_of(dates: pd.DatetimeIndex) -> np.ndarray:
-    feats = pd.read_parquet(REPO_ROOT / "data" / "processed" / "features_regimes.parquet")
+def _regime_of(dates: pd.DatetimeIndex, processed_dir=None) -> np.ndarray:
+    processed_dir = processed_dir or (REPO_ROOT / "data" / "processed")
+    feats = pd.read_parquet(processed_dir / "features_regimes.parquet")
     idx = feats.index
     if getattr(idx, "tz", None) is not None:
         idx = idx.tz_localize(None)
@@ -68,27 +74,32 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--reps", default=",".join(REPS))
     ap.add_argument("--seeds", type=int, default=10)
+    ap.add_argument("--market", default="spy", choices=list(MARKETS))
     args = ap.parse_args()
     reps = [r for r in args.reps.split(",") if r]
     seeds = SEEDS[: args.seeds]
+    processed_dir, tag = MARKETS[args.market]
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     rows = []
 
     def add(rep, variant, seed, metric, value, group="all"):
-        rows.append({"rep": rep, "variant": variant, "seed": seed, "metric": metric,
-                     "group": group, "value": float(value)})
+        rows.append({"market": args.market, "rep": rep, "variant": variant,
+                     "seed": seed, "metric": metric, "group": group,
+                     "value": float(value)})
 
     for rep in reps:
-        data = load_offline_rep(rep, RepLabConfig())
+        cfg0 = RepLabConfig()
+        cfg0.processed_dir, cfg0.tag = processed_dir, tag
+        data = load_offline_rep(rep, cfg0)
         tr_mask, te_mask = data.split("train"), data.split("test")
         dates_te = data.dates[te_mask]
-        regimes_te = _regime_of(dates_te)
+        regimes_te = _regime_of(dates_te, processed_dir)
         a_beh_te = data.actions[:, te_mask].numpy().mean(axis=0)
         r_te = data.market_returns[te_mask].numpy()
 
         # regime estimate from h_t (train-only) for the gated model
-        regimes_all = _regime_of(data.dates)
+        regimes_all = _regime_of(data.dates, processed_dir)
         risk = RegimeRisk().fit(data.H, regimes_all, tr_mask)
 
         # behaviour clone baseline
@@ -133,7 +144,16 @@ def main() -> None:
         print(f"[done] {rep}")
 
     df = pd.DataFrame(rows)
-    df.to_csv(OUT_DIR / "rep_gated.csv", index=False)
+    out_csv = OUT_DIR / "rep_gated.csv"
+    if out_csv.exists():
+        old = pd.read_csv(out_csv)
+        keys = set(zip(df["market"], df["rep"], df["variant"], df["seed"],
+                       df["metric"], df["group"]))
+        old = old[~old.apply(lambda r: (r["market"], r["rep"], r["variant"],
+                                        r["seed"], r["metric"], r["group"]) in keys,
+                             axis=1)]
+        df = pd.concat([old, df], ignore_index=True)
+    df.to_csv(out_csv, index=False)
 
     pd.set_option("display.width", 240)
     print("\n=== overall test Sharpe (mean over seeds) ===")

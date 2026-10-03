@@ -346,6 +346,17 @@ conservative: adaptive gating dominates both the conservative (BC) and the
 fully-deviating (A2C) endpoints and approaches the oracle. Gains over behaviour
 cloning are modest and at/below the buy-and-hold baseline.
 
+**Cross-market (CSI300, NIFTY).** The gate consistently learns a
+bull-vs-bear/crisis asymmetry in every market (λ higher in bull), but whether
+that prior is *correct* is market-specific. On SPY it is right (gating beats
+both extremes and matches the oracle); on CSI300 the test period is
+unsolvable (all variants negative, a crisis-driven rally); on NIFTY the
+bear/crisis penalty is wrong because crisis deviation pays (A2C crisis 2.86 vs
+behaviour −0.71), so the gate loses to unconstrained A2C (.622 vs .705).
+"When it is safe to deviate" is therefore not a universal rule: the gate
+reflects the training market's regime structure and the risk prior does not
+transfer unchanged.
+
 ---
 
 ## 5. Discussion
@@ -457,6 +468,10 @@ figure) denote the proposed, untested mechanism.
    protocol, limiting conclusions about representation transfer.
 7. **CQL behaviour depends materially on implementation/regularization
    choices**; the main-table CQL is the regularized variant.
+9. **The regime-gated mechanism is market-specific**: the gate learns a
+   bull-vs-bear asymmetry in every tested market, but the sign of divergence's
+   effect differs (deviation pays in bull on SPY, in crisis on NIFTY), so the
+   "when to deviate" prior does not transfer unchanged.
 8. The representation-quality framework evaluates **selected measurable
    properties** (probe recoverability, rank, CKA, perturbation sensitivity); it
    is **not a complete measure of the "information contained"** in a
