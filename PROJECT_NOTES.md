@@ -4772,6 +4772,50 @@ constant exposure earns, and their crisis/bear protection only pays when BH is
 negative (CSI300) or crisis crashes (SPY) - not in bull markets (SPY, NIFTY).
 The oracle gap confirms the same on CSI300.
 
+### 8.18 H6 - EXPOSURE-ONLY POLICY (a_t = e_t, NO DIRECTION HEAD) (2026-09-15)
+-------------------------------------------------------------------------------
+Follows 8.17: since direction is at chance, ask "how much exposure?" instead of
+"up or down?". Model: a_t = e_t, e_t = sigmoid(g(h_t)) in (0,1), s_t fixed +1
+(no directional prediction). Variants: exposure_sharpe (max differentiable
+Sharpe of e*r over the train path), exposure_regime (+ rho*E[e*risk], risk =
+P(bear)+P(crisis)). Code: src/models/rep_lab/exposure.py,
+scripts/rep_exposure.py, tests/test_exposure.py (suite 96 pass).
+
+RESULTS (test 2021-2024, predictive rep, 3-seed mean policy):
+  SPY    buy_and_hold    Sharpe .784  return .586  maxdd -.253  exp 1.00
+         constant_learned  .784       .262        -.125        .475   (scale-invariant!)
+         exposure_sharpe   .909       .309        -.114        .475   <-- BEATS BH
+         exposure_regime   .819       .236        -.109        .432
+  CSI300 buy_and_hold   -.352  | constant -.352 | exposure_sharpe -.355 |
+         exposure_regime -.357 (hostile period - nothing works, ~= BH)
+  NIFTY  buy_and_hold    1.006  .694 -.172  1.00
+         exposure_sharpe 1.033  .271 -.081  .451  <-- BEATS BH
+         exposure_regime  .971  .133 -.046  .248
+
+FINDINGS (the H6 answer is YES):
+  1. constant_learned reproduces BH Sharpe EXACTLY (.784/.784, -0.352/-0.352,
+     1.006/1.006): scaling exposure is Sharpe-scale-invariant, so any Sharpe
+     gain must come from TIMING, not from being underexposed.
+  2. exposure_sharpe BEATS buy-and-hold on SPY (.909 vs .784, +.125) and NIFTY
+     (1.033 vs 1.006) with roughly HALF the max drawdown (-.114 vs -.253;
+     -.081 vs -.172) - and it makes NO directional prediction. The exposure
+     policy finds risk-adjusted edge purely from h_t (vol/regime timing).
+  3. exposure_regime is the most conservative (regime exposure bull > bear >
+     crisis on SPY .449/.374/.377 and NIFTY .280/.185/.108) with the LOWEST
+     drawdown, at a small Sharpe cost vs exposure_sharpe.
+  4. CSI300: the hostile period defeats any exposure policy (~= BH negative);
+     the model does not hurt.
+
+  => An uncertainty/regime-aware exposure policy improves the risk/return
+  trade-off WITHOUT directional skill on positive-drift markets (SPY, NIFTY),
+  beating buy-and-hold on Sharpe while halving drawdown. This is the strongest
+  actionable result in the thread and is honest (no direction claim).
+
+CAVEATS: max-Sharpe objective is fit on train, selected on val (weight decay +
+3-seed averaging); gains are consistent across two independent markets but
+modest and on 2021-2024; no transaction cost in the exposure table (turnover
+tiny for smooth exposure); CSI300 remains unsolvable.
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

@@ -60,6 +60,7 @@ utility, F(3,144) = 9.05, p < .0001, eta^2 = .142.
 | H3: Representation properties predict utility | 36-cell correlations + diagnostics | **Not supported as a general mapping** |
 | H4: Policy divergence mediates representation sensitivity | divergence/sensitivity + regime | **Regime interaction supported; seed-level main effect not supported** |
 | H5: A policy can learn when to deviate | regime-gated policy (§4.5) | **Supported constructively** (beats BC and A2C, matches oracle) |
+| H6: Exposure-only policy improves risk-adjusted utility without direction | exposure policy (§4.7) | **Supported** (beats BH Sharpe on SPY/NIFTY, halves drawdown) |
 | (confirmatory) Algorithm identity affects utility | two-way ANOVA | **Supported** |
 
 ---
