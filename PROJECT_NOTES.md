@@ -4717,6 +4717,61 @@ VERDICT (honest, market-dependent):
   rule; the gate reflects the training market's regime structure. This is the
   cross-market limit of the H5 mechanism.
 
+### 8.17 WHY IS LEARNED UTILITY BELOW BUY-AND-HOLD? - DIAGNOSTIC DECOMPOSITION (2026-09-15)
+-------------------------------------------------------------------------------
+NO tuning, NO new model. scripts/rep_diagnose.py runs the same battery on
+SPY/CSI300/NIFTY (predictive rep, 3 seeds): buy_and_hold, behavior_mean,
+constant_mean, random, A2C, BC, IQL, CQL, gated, oracle (regime-aware gate on
+A2C's deviation, true test labels). Output: data/interpret/rep_diagnose.csv.
+
+KEY TABLE (test 2021-2024; sharpe / exposure / dir_acc / upside_capture /
+downside_loss / delta_BH):
+  spy     BH       .784  1.00  .535  1.00  1.00  -      A2C .692/.147/.528/.174/.169/-.093
+          BC .631/.147/.519/.096/.085/-.153  IQL .629/.157/.517/.100/.087/-.156
+          CQL .696/.765/.534/.775/.779/-.088 gated .741/.159/.520/.100/.083/-.043
+  csi300  BH      -.352  1.00  .478  1.00  1.00  -      A2C -.015/.312/.478/.336/.317/+.337
+          BC -.119/.160/.481/.066/.068/+.232  IQL -.099/.171/.502/.068/.069/+.253
+          oracle -.339 (still negative)                 gated -.381/.167/.509/.048/.062/-.029
+  nifty   BH      1.006  1.00  .542  1.00  1.00  -      A2C .718/.400/.511/.443/.444/-.287
+          BC .571/.122/.468/.097/.095/-.435  IQL .463/.145/.470/.093/.091/-.543
+          CQL .630/.256/.499/.237/.238/-.376 oracle .659 (< BH), gated .518/-.488
+
+DECOMPOSITION ANSWER: R_policy = R_direction + R_timing - R_turnover - R_cost.
+  1. R_direction ~ 0: dir_acc is AT CHANCE in every market (.47-.54 = market up-
+     frequency); no policy predicts direction anywhere.
+  2. R_timing ~ 0/negative: every learned policy UNDERGEXPOSES (exposure .12-.77
+     vs BH 1.00) and varies its position. With no directional skill, time-varying
+     exposure adds VARIANCE without adding mean (a_t uncorrelated with r_t), which
+     lowers Sharpe below BH (constant exposure is Sharpe-scale-invariant, time-
+     varying exposure is not).
+  3. R_turnover / R_cost are SMALL (turnover .03-.07): NOT the problem.
+  => The learned policies are not "predicting poorly" (they predict at chance
+  like everyone) and not "losing through costs"; they are systematically
+  UNDEREXPOSED, and underexposure without direction costs exactly the Sharpe
+  that BH earns from full constant exposure.
+
+REGIME COLOR (SPY): BH bull .959 / bear .571 / crisis -1.637; learned bull
+.35-.84 (UNDEREXPOSE in bull), crisis +3-4 (PROTECT where BH crashes). Net:
+the bull participation loss outweighs the short-crisis protection gain -> below
+BH. NIFTY: BH bull .988 / crisis 5.145; learned bear negative (BH +.414) and
+miss the crisis rally -> far below BH. CSI300: BH bull -.847 / crisis .465;
+learned capture the crisis rally (IQL 5.25, gated 4.30) but bull is negative
+for everyone.
+
+CSI300 ORACLE GAP (question C): the look-ahead oracle is ALSO negative
+(-.339, ~= BH -.352). => The CSI300 evaluation period is INTRINSICALLY HOSTILE
+under this decision problem (direction at chance + negative drift in the
+labeled bull/bear regimes); the decision learner is NOT the primary bottleneck.
+Learned policies actually BEAT BH on CSI300 by underexposing (A2C -.015 vs
+-.352) - they just cannot reach positive Sharpe.
+
+BOTTOM LINE: below-BH utility is a POSITIONING problem, not a prediction or
+cost problem: the policies are directionally clueless (chance) and
+systematically underexposed, so they sacrifice the up-capture that BH's full
+constant exposure earns, and their crisis/bear protection only pays when BH is
+negative (CSI300) or crisis crashes (SPY) - not in bull markets (SPY, NIFTY).
+The oracle gap confirms the same on CSI300.
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

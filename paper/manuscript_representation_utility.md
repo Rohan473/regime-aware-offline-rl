@@ -346,6 +346,43 @@ conservative: adaptive gating dominates both the conservative (BC) and the
 fully-deviating (A2C) endpoints and approaches the oracle. Gains over behaviour
 cloning are modest and at/below the buy-and-hold baseline.
 
+### 4.6 Why is learned utility below buy-and-hold? A decomposition
+
+Decompose policy return as R_policy = R_direction + R_timing − R_turnover −
+R_cost, with the diagnostics in Table below (test 2021–2024, predictive
+representation, 3 seeds; all markets).
+
+| policy | Sharpe | exposure | dir_acc | upside capture | downside loss | Δ vs BH |
+|---|---|---|---|---|---|---|
+| buy-and-hold (SPY/CSI300/NIFTY) | .784 / −.352 / 1.006 | 1.00 | .54 / .48 / .54 | 1.00 | 1.00 | 0 |
+| A2C | .692 / −.015 / .718 | .15 / .31 / .40 | .53 / .48 / .51 | .17 / .34 / .44 | .17 / .32 / .44 | −.09 / +.34 / −.29 |
+| BC | .631 / −.119 / .571 | .15 / .16 / .12 | .52 / .48 / .47 | .10 / .07 / .10 | .09 / .07 / .10 | −.15 / +.23 / −.44 |
+| IQL | .629 / −.099 / .463 | .16 / .17 / .15 | .52 / .50 / .47 | .10 / .07 / .09 | .09 / .07 / .09 | −.16 / +.25 / −.54 |
+| CQL | .696 / −.316 / .630 | .77 / .40 / .26 | .53 / .48 / .50 | .78 / .22 / .24 | .78 / .24 / .24 | −.09 / +.04 / −.38 |
+| gated (proposed) | .741 / −.381 / .518 | .16 / .17 / .16 | .52 / .51 / .48 | .10 / .05 / .12 | .08 / .06 / .12 | −.04 / −.03 / −.49 |
+| oracle | .671 / −.339 / .659 | .31 / .23 / .38 | .53 / .50 / .52 | .29 / .16 / .40 | .27 / .17 / .40 | −.11 / +.01 / −.35 |
+
+Three conclusions:
+
+1. **Direction is at chance in every market and every policy** (dir_acc ≈ the
+   market's up-day frequency). There is no predictive skill to exploit.
+2. **The loss is a positioning problem, not a prediction or cost problem.**
+   Turnover and costs are negligible (0.03–0.07); directional accuracy is
+   identical to chance. Every learned policy *underexposes* (0.12–0.77 vs 1.00)
+   and varies its position, and with no directional skill time-varying exposure
+   adds variance without mean, which lowers Sharpe below buy-and-hold (constant
+   exposure is Sharpe-scale-invariant; time-varying exposure is not).
+3. **Regime coloring:** the policies' underexposure buys crisis/bear protection
+   where buy-and-hold crashes (SPY crisis −1.64 vs learned +3–4) but sacrifices
+   bull participation (SPY bull .96 vs learned .35–.84; NIFTY crisis 5.15 vs
+   learned ≤3.5). On CSI300 the buy-and-hold itself is negative (−.352), and a
+   look-ahead oracle is *also* negative (−.339) — the evaluation period is
+   intrinsically hostile, and the decision learner is not the primary bottleneck
+   (learned policies actually beat buy-and-hold there by underexposing).
+
+The below-buy-and-hold result is therefore a positioning (timing) loss from
+directionless underexposure, not a prediction or transaction-cost failure.
+
 **Cross-market (CSI300, NIFTY).** The gate consistently learns a
 bull-vs-bear/crisis asymmetry in every market (λ higher in bull), but whether
 that prior is *correct* is market-specific. On SPY it is right (gating beats
