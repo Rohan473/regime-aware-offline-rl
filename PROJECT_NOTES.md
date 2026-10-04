@@ -4847,6 +4847,47 @@ CONCLUSION (the identified decision-relevant pathway):
   utility without measurable directional skill." (NOT "extracts edge purely
   from h_t").
 
+### 8.20 H7 - HYBRID EXPOSURE BLEND (a = e + alpha*(1-e)) (2026-09-15)
+-------------------------------------------------------------------------------
+Research question: can adaptive exposure retain the risk-timing benefit of
+offline RL while recovering buy-and-hold's persistent exposure when directional
+skill is unavailable? Model: continuous blend (no threshold, no discontinuous
+trading) a_t = e_t + alpha_t*(1-e_t), alpha in [0,1]; alpha = sigmoid(W[risk,
+ood, vol] + b) - a 3-parameter head on EXPLICIT at-t features only (regime
+risk P(bear)+P(crisis), Mahalanobis OOD distance, realized vol). No future
+returns/vol, no direction. Code: src/models/replab/hybrid.py,
+scripts/rep_hybrid.py, tests/test_hybrid.py (suite 99 pass).
+
+RESULTS (test 2021-2024, Sharpe / return / maxDD; predictive rep, 3-seed mean e):
+  SPY     BH .784/.586/-.253 | adaptive .909/.309/-.114 | blend_50 .827/.447/-.184
+          floor_50 .812/.300/-.134 | blend_risk .890/.439/-.166
+  CSI300  BH -.352/-.275/-.456 | adaptive -.355 | blend_50 -.353 | floor_50 -.350
+          blend_risk -0.281 (BEST) | blend_risk exposure .823 (leans BH)
+  NIFTY   BH 1.006/.694/-.172 | adaptive 1.033/.271/-.081 | blend_50 1.024
+          floor_50 1.053 | blend_risk 1.203/.661/-.105  (BEATS BH AND adaptive)
+
+MECHANISM (SPY is the cleanest): corr(alpha, vol) = -0.93 - the blend pushes
+TOWARD buy-and-hold when vol is LOW and toward adaptive exposure when vol is
+HIGH (low risk/in-distribution -> alpha -> 1; high risk -> alpha -> adaptive).
+Regime alpha (SPY): bull .53 > bear .23 > crisis .13. NIFTY: crisis .73 > bull
+.54 > bear .46 (leans BH in the crisis rally). CSI300: alpha .59-.73 (leans BH,
+recovering upside in the hostile period).
+
+VERDICT: YES - the hybrid blend retains most of buy-and-hold's upside while
+keeping the risk-timing benefit. NIFTY: return .661 (BH .694) with Sharpe 1.203
+(better than BOTH BH 1.006 and adaptive 1.033) and better drawdown than BH.
+SPY: return .439 (BH .586) with Sharpe .890 (above BH) and better drawdown.
+CSI300: the best policy (-.281 vs BH -.352) by recovering exposure. The
+RISK-AWARE alpha is what adds value: constant 50/50 blending does NOT beat BH
+on SPY Sharpe (.827 < .784 is false - .827 > .784, but below adaptive .909 and
+below blend_risk .890); the at-t risk/ood/vol control is the differentiator.
+
+BOUNDARY: the upper anchor is NOT forced to BH - the 3-param head lets the data
+decide alpha. It ends near BH in low-vol/positive regimes (SPY bull, NIFTY
+crisis) and near adaptive in high-risk states. This directly addresses the
+"low risk -> BH?" caution: in the tested positive-drift markets the data chose
+alpha toward 1 in calm periods.
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

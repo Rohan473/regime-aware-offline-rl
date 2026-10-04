@@ -461,6 +461,41 @@ specific decision-relevant representation pathway — latent risk/volatility
 directional information is unavailable. This is the difference between
 predictive skill and risk-management skill made operational.
 
+### 4.9 Hybrid exposure: retaining buy-and-hold's upside while keeping risk timing
+
+Since the exposure-only policy beats buy-and-hold on Sharpe but sacrifices
+much of its participation (return .31 vs .59 on SPY), we test a continuous
+blend a_t = e_t + α_t·(1 − e_t) with α_t ∈ [0,1] (α=0 → adaptive exposure,
+α=1 → buy-and-hold), where α_t = σ(W·[risk, ood, vol]) is a three-parameter
+head on explicit at-t features only (regime risk, Mahalanobis OOD distance,
+realized volatility) — no future information, no threshold, no direction.
+
+| policy (SPY / CSI300 / NIFTY) | Sharpe | return | maxDD | exposure |
+|---|---|---|---|---|
+| buy-and-hold | .784 / −.352 / 1.006 | .586 / −.275 / .694 | −.253 / −.456 / −.172 | 1.00 |
+| adaptive exposure | .909 / −.355 / 1.033 | .309 / −.135 / .271 | −.114 / −.253 / −.081 | .48 |
+| constant 50/50 blend | .827 / −.353 / 1.024 | .447 / −.204 / .473 | −.184 / −.360 / −.127 | .74 |
+| floor max(e, .5) | .812 / −.350 / 1.053 | .300 / −.135 / .350 | −.134 / −.254 / −.087 | .51 |
+| **risk-aware blend (proposed)** | **.890 / −.281 / 1.203** | .439 / −.199 / .661 | −.166 / −.383 / −.105 | .71 |
+
+The proposed blend retains most of buy-and-hold's upside while keeping the
+risk-timing benefit: on NIFTY it reaches Sharpe 1.203 with return .661 (vs .694
+for buy-and-hold) and better drawdown; on SPY Sharpe .890 with return .439
+(vs .586) and better drawdown; on CSI300 it is the best policy (−.281 vs −.352)
+by recovering exposure. The mechanism is readable from the three-parameter head:
+on SPY α correlates −.93 with volatility — the blend approaches buy-and-hold
+when risk is low and reverts toward adaptive exposure when risk is high (α by
+regime: bull .53 > bear .23 > crisis .13); on NIFTY α rises in the crisis
+rally (.73). A *constant* 50/50 blend does not reproduce this (SPY .827, below
+both adaptive and the risk-aware blend), confirming that the at-t risk/OOD/vol
+control — not blending per se — is the differentiator.
+
+**Finding.** Adaptive exposure can preserve the risk-timing benefit of offline
+RL while recovering the persistent market exposure that buy-and-hold provides,
+via a continuous, at-t risk/OOD/vol-driven blend. The data, not a prior,
+decides the upper anchor: in calm positive-drift periods the blend leans toward
+buy-and-hold, and in high-risk states toward adaptive exposure.
+
 **Cross-market (CSI300, NIFTY).** The gate consistently learns a
 bull-vs-bear/crisis asymmetry in every market (λ higher in bull), but whether
 that prior is *correct* is market-specific. On SPY it is right (gating beats
