@@ -4888,6 +4888,42 @@ crisis) and near adaptive in high-risk states. This directly addresses the
 "low risk -> BH?" caution: in the tested positive-drift markets the data chose
 alpha toward 1 in calm periods.
 
+### 8.21 HYBRID VALIDATION (10 seeds) - 8.20 RESULT HOLDS DIRECTIONALLY (2026-09-15)
+-------------------------------------------------------------------------------
+scripts/rep_hybrid_validate.py: 10 seeds, paired bootstrap CIs, cost
+robustness, sub-periods, alpha-input ablations, permutation control. Output:
+rep_hybrid_validate.csv.
+
+10-SEED SHARPE (mean): SPY BH .784 | adaptive .941 | floor .820 | blend50 .840
+  | hybrid .905 | permuted .848; CSI300 BH -.352 | hybrid -.337; NIFTY BH 1.006
+  | adaptive 1.028 | hybrid 1.074 | permuted 1.011.
+PAIRED hybrid-BH 95% CI (5k resamples, identical dates): SPY +.121 [-.059,
+  .294]; CSI300 +.016 [-.020, .053]; NIFTY +.096 [-.044, .234]. => directionally
+  consistent but NOT significant at 5% on the single 4-year test period.
+SUB-PERIODS: hybrid beats BH in 2021-22 AND 2023-24 on NIFTY (1.029/1.206 vs
+  .888/1.196) and CSI300; on SPY beats 2021-22 (.297 vs .176), slightly below
+  2023-24 (1.732 vs 1.775).
+COST: hybrid beats BH at 0/1/5/10 bp on SPY (.906/.897/.863/.820 vs ~.784) and
+  NIFTY (1.099/1.091/1.060/1.022 vs ~1.000).
+ABLATIONS (10 seeds, alpha inputs): OOD is the KEY input - best on all markets,
+  and dramatically on CSI300 (hybrid[ood] -.124 vs all -.337); vol helps on
+  positive-drift markets (SPY .882, NIFTY 1.021) but HURTS on CSI300 (-.434);
+  regime-risk alone weakest (SPY .848, NIFTY .978). Refines 8.19: OOD/
+  representation-distance is the transferable exposure signal; vol timing only
+  where positive drift exists.
+PERMUTATION CONTROL: shuffling alpha over dates (keep distribution, break time
+  alignment) -> SPY .905->.848, NIFTY 1.074->1.011, CSI300 -.337->-.346. The
+  at-t timing adds a modest real increment (~.06); the rest is the blend
+  recovering exposure. No look-ahead artifact.
+
+VERDICT: the hybrid advantage is directionally robust across 10 seeds, all three
+markets, both sub-periods (NIFTY/CSI300) and cost up to 10 bp, but is NOT
+statistically significant at 5% on this single test period. Report it honestly:
+"improves the risk-adjusted outcome relative to buy-and-hold across all three
+markets, largest in NIFTY; in SPY retains a Sharpe advantage while sacrificing
+return; in CSI300 reduces losses during an unfavorable period" - NOT "beats BH
+on every metric". Conceptual figure: paper/hybrid_mechanism.png.
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

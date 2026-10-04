@@ -490,11 +490,52 @@ rally (.73). A *constant* 50/50 blend does not reproduce this (SPY .827, below
 both adaptive and the risk-aware blend), confirming that the at-t risk/OOD/vol
 control — not blending per se — is the differentiator.
 
-**Finding.** Adaptive exposure can preserve the risk-timing benefit of offline
-RL while recovering the persistent market exposure that buy-and-hold provides,
-via a continuous, at-t risk/OOD/vol-driven blend. The data, not a prior,
-decides the upper anchor: in calm positive-drift periods the blend leans toward
-buy-and-hold, and in high-risk states toward adaptive exposure.
+**Finding.** The risk-aware hybrid improves the risk-adjusted outcome relative
+to buy-and-hold across all three tested markets, with the largest improvement
+in NIFTY; in SPY it retains a Sharpe advantage while sacrificing some return,
+and in CSI300 it reduces losses during an intrinsically unfavorable evaluation
+period. The data, not a prior, decides the upper anchor: in calm positive-drift
+periods the blend leans toward buy-and-hold, and in high-risk states toward
+adaptive exposure.
+
+### 4.10 Validation of the hybrid result
+
+We validate with 10 seeds (not 3), paired bootstrap confidence intervals,
+transaction-cost robustness, out-of-sample sub-periods, an input ablation, and
+a no-look-ahead permutation control.
+
+**10-seed Sharpe (mean) and paired hybrid − buy-and-hold difference (5,000
+resamples over identical test dates):**
+
+| market | BH | adaptive | hybrid | paired Δ (95% CI) |
+|---|---|---|---|---|
+| SPY | .784 | .941 | .905 | +.121 [−.059, .294] |
+| CSI300 | −.352 | −.350 | −.337 | +.016 [−.020, .053] |
+| NIFTY | 1.006 | 1.028 | 1.074 | +.096 [−.044, .234] |
+
+The hybrid advantage over buy-and-hold is **directionally consistent across
+all three markets and 10 seeds**, and survives both sub-periods (2021–22 and
+2023–24) on NIFTY and CSI300 and the 2021–22 period on SPY, and cost levels up
+to 10 bp (e.g. NIFTY 1.022 vs 1.000 at 10 bp). **However, the paired Sharpe
+difference is not statistically significant at the 5% level on the single
+four-year test period** (all CIs include zero): the result is a consistent,
+economically meaningful improvement, not an established edge on this horizon.
+
+**Input ablation (10 seeds):** OOD distance is the most valuable and robust
+at-t input — best on all three markets, and dramatically so on CSI300
+(−.124 vs −.337 for the full blend), where including volatility actively hurts
+(−.434). Volatility helps on the positive-drift markets (SPY .882, NIFTY 1.021);
+regime-risk alone is the weakest input (SPY .848, NIFTY .978, CSI300 −.350).
+This refines the §4.8 pathway: representation-distance (OOD) information is the
+key exposure-control signal, with volatility timing valuable only where
+positive drift exists.
+
+**Permutation control (no-look-ahead check):** shuffling the learned α across
+dates (destroying its time alignment, keeping its distribution) reduces the
+hybrid Sharpe on SPY (.905 → .848) and NIFTY (1.074 → 1.011) but does not
+eliminate it. The at-t timing contributes a modest real increment (~.06 Sharpe);
+the remainder comes from the blend structure recovering exposure. This confirms
+the timing is genuine, not an accidental look-ahead artifact.
 
 **Cross-market (CSI300, NIFTY).** The gate consistently learns a
 bull-vs-bear/crisis asymmetry in every market (λ higher in bull), but whether
