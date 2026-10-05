@@ -537,6 +537,41 @@ eliminate it. The at-t timing contributes a modest real increment (~.06 Sharpe);
 the remainder comes from the blend structure recovering exposure. This confirms
 the timing is genuine, not an accidental look-ahead artifact.
 
+### 4.11 The exposure family on the risk–return plane
+
+We place the full exposure-policy family on the annualized (volatility, return)
+plane (5-seed mean; SPY, NIFTY, CSI300). We do **not** claim an efficient
+frontier — this is a risk–return trade-off map.
+
+A textbook anchor falls out exactly. Constant exposure c gives R = c·R_BH, so
+Sharpe(c·R_BH) = Sharpe(R_BH); the entire constant-exposure family lies on the
+buy-and-hold ray (verified: constant 0.1–1.0 all have Sharpe equal to BH). Any
+Sharpe change must therefore come from **time-varying** exposure.
+
+| policy | SPY (ret/vol/Sharpe) | NIFTY (ret/vol/Sharpe) |
+|---|---|---|
+| buy-and-hold (ray) | .129 / .165 / **.784** | .147 / .146 / **1.006** |
+| adaptive | .071 / .077 / **.927** | .064 / .062 / **1.039** |
+| regime-constrained | .055 / .066 / .822 | .034 / .035 / .981 |
+| floor max(e,.5) | .071 / .086 / .819 | .081 / .077 / 1.054 |
+| **hybrid** | .096 / .106 / **.900** | .124 / .108 / **1.146** |
+| constant sweep | on the BH ray (.784) | on the BH ray (1.006) |
+
+On SPY and NIFTY the adaptive and hybrid points lie **above the buy-and-hold
+ray** (higher return per unit risk) and the hybrid is Pareto-non-dominated in
+the (volatility, return) plane — on NIFTY it attains the highest Sharpe with a
+return close to buy-and-hold and much lower volatility. On CSI300 the frontier
+is **degenerate**: the flat (zero-exposure) policy Pareto-dominates everything
+because no policy creates positive return, so the improvement there reduces to
+loss reduction. `paper/risk_return_frontier.png` shows the map.
+
+**Finding.** The adaptive and hybrid policies shift the realized risk–return
+trade-off relative to buy-and-hold, with the hybrid providing a favorable
+compromise between market participation and exposure reduction. This is a
+dynamic risk–return improvement, established on positive-drift markets; it is
+not a claim of mean–variance efficiency against the feasible set (an
+efficient-frontier statement would require that stronger test).
+
 **Cross-market (CSI300, NIFTY).** The gate consistently learns a
 bull-vs-bear/crisis asymmetry in every market (λ higher in bull), but whether
 that prior is *correct* is market-specific. On SPY it is right (gating beats

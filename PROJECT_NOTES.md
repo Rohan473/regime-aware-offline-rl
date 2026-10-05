@@ -4924,6 +4924,39 @@ markets, largest in NIFTY; in SPY retains a Sharpe advantage while sacrificing
 return; in CSI300 reduces losses during an unfavorable period" - NOT "beats BH
 on every metric". Conceptual figure: paper/hybrid_mechanism.png.
 
+### 8.22 RISK-RETURN TRADE-OFF MAP OF THE EXPOSURE FAMILY (2026-09-15)
+-------------------------------------------------------------------------------
+scripts/rep_frontier.py: annualized (return, vol) coordinates + Pareto check
+for the full exposure-policy family (constant sweep, constant-alpha blends,
+adaptive, regime-constrained, floor, hybrid, BH), 5-seed mean. Output:
+rep_frontier.csv, paper/risk_return_frontier.png. NOT an efficient-frontier
+claim - a risk-return trade-off map.
+
+TEXTBOOK ANCHOR: constant exposure c gives R = c*R_BH, so Sharpe(c*R_BH) =
+Sharpe(BH) EXACTLY -> the whole constant-exposure family lies on the BH ray
+(confirmed: const_0.1..1.0 all Sharpe = BH). Any Sharpe change must come from
+TIME-VARYING exposure.
+
+SPY (ann_ret / ann_vol / Sharpe): BH .129/.165/.784 (ray); adaptive
+  .071/.077/.927; hybrid .096/.106/.900; blends Sharpe .927->.784. adaptive and
+  hybrid lie ABOVE the BH ray (higher Sharpe) and the hybrid is Pareto-
+  non-dominated.
+NIFTY: BH .147/.146/1.006 (ray); adaptive .064/.062/1.039; floor .081/.077/1.054;
+  hybrid .124/.108/1.146 (highest Sharpe, Pareto-non-dominated, return close to
+  BH with much lower vol).
+CSI300: BH -.066/.188/-.352; hybrid -.044/.148/-.299 (least-bad). The frontier
+  is DEGENERATE - the flat (zero-exposure) policy Pareto-dominates everything;
+  no policy creates positive return, so "improvement" reduces to loss reduction.
+
+VERDICT / WORDING: "The adaptive and hybrid policies shift the realized
+risk-return trade-off relative to buy-and-hold, with the hybrid providing a
+favorable compromise between market participation and exposure reduction."
+Use "risk-return trade-off" / "dynamic risk-return improvement" - NOT "the
+model lies on the efficient frontier" (an efficient-frontier claim would need
+mean-variance efficiency relative to the feasible set). On positive-drift
+markets the hybrid sits above the BH ray (higher Sharpe); on CSI300 the frontier
+is trivial.
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------
