@@ -1,4 +1,4 @@
-# What determines trading utility in offline financial reinforcement learning? Representation, decision algorithm, and behaviour divergence
+# What determines risk-adjusted utility in offline financial reinforcement learning? Representation, decision algorithm, and exposure
 
 > Drafting note: citations use well-known landmarks; author/year/venue details
 > should be verified against the target journal's style during packaging. Every
@@ -32,15 +32,20 @@ formal two-way ANOVA over 4 representations × 4 decision algorithms × 10 seeds
 (p = .067) and the representation × algorithm interaction is not statistically
 established (p = .206). A pre-specified follow-up test shows the utility of
 behaviour-policy divergence is strongly regime-dependent (divergence × regime
-interaction χ²(2) = 80.9, p = 2.7e-18: positive in bull, negative in
-bear/crisis), while divergence alone does not predict utility once algorithm
-identity is controlled (p = .446).
+interaction χ²(2) = 80.9, p = 2.7e-18: the divergence slope is near zero in
+bull (+0.04) and increasingly negative in bear (−1.04) and crisis (−4.05)),
+while divergence alone does not predict utility once algorithm identity is
+controlled (p = .446).
 
 **Decision algorithm is a stronger determinant of downstream utility than
-representation identity in the tested setting.** None of the learned policies
-exceeds a buy-and-hold baseline (test Sharpe .784); the contribution is an
-understanding of the mechanics and evaluation of offline financial RL, not a
-profitable trading strategy.
+representation identity in the tested setting.** The original representation ×
+decision-algorithm policies do not exceed a buy-and-hold baseline; subsequent
+exposure-only and hybrid policies improve the tested risk–return trade-off,
+although their paired Sharpe advantages are not statistically significant over
+the single four-year test period. The contribution is an understanding of the
+mechanics and evaluation of offline financial RL — including that the
+exploitable margin is exposure/risk control rather than direction prediction —
+not a profitable trading strategy.
 
 ---
 
@@ -244,7 +249,9 @@ Test Sharpe (10 seeds), same frozen representations and transitions:
 | contrastive | .527 | .641 | .621 | .709 |
 
 Baselines: **buy-and-hold .784**, constant_mean .784, behaviour_mean .725,
-random −.456. **No learned policy exceeds buy-and-hold.**
+random −.456. **No policy in this representation × algorithm matrix exceeds
+buy-and-hold** (later exposure-only and hybrid policies improve the
+risk–return trade-off; §4.7–4.9).
 
 Two-way ANOVA:
 
@@ -279,8 +286,13 @@ sensitive. Across the four algorithms the association is strong (Pearson
 r = .935, Spearman .80), but with n = 4 this is **descriptive only**. At the
 seed level the association is weak and inconsistent (pooled r = .13, p = .38).
 
-Regime conditioning (n = 48) shows the divergence–utility relation changes
-sign: bull +.47, bear −.60, crisis −.58. Regime-conditioned Sharpe makes the
+Raw regime correlations (n = 48; not controlling for representation or
+algorithm) show the divergence–utility relation changes sign: bull +.47,
+bear −.60, crisis −.58. (The pre-specified regression below controls for
+representation and algorithm and yields absolute slopes bull +0.04, bear
+−1.04, crisis −4.05; the descriptive correlations and the controlled slopes
+agree on the regime-dependence but not on the bull sign, which is why the
+controlled test is the one reported.) Regime-conditioned Sharpe makes the
 same point: BC/IQL win defensively (crisis IQL 3.18, BC 2.87 vs A2C .46);
 A2C/CQL win in bull (CQL .81, A2C .77 vs BC/IQL ≈.36). Per-year, all
 algorithms succeed in 2021/2023/2024 and fail together in 2022 (the bear year),
@@ -297,10 +309,12 @@ on the existing seed-level data (no new training), two pre-registered models:
   representation and algorithm — n = 48.
 
 Stage 1 is **significant**: the divergence × regime interaction is large
-(joint χ²(2) = 80.9, p = 2.7e-18); the divergence–utility slope is positive in
-bull (+1.08, p < .0001) and negative in crisis (≈ −1.9, p = .0002). Stage 2 is
-**null**: divergence does not predict utility once algorithm identity is
-controlled (β₁ = +.135, p = .446; JS-divergence variant +.264, p = .567).
+(joint χ²(2) = 80.9, p = 2.7e-18). The absolute per-regime divergence–utility
+slopes (reference = bear) are **bull +0.04, bear −1.04, crisis −4.05** — the
+slope is near zero in bull and increasingly negative in bear and (strongly)
+crisis. Stage 2 is **null**: divergence does not predict utility once algorithm
+identity is controlled (β₁ = +.135, p = .446; JS-divergence variant +.264,
+p = .567).
 
 Behaviour-policy divergence and regime conditioning provide a plausible
 explanation for why some algorithms appear more representation-sensitive. The
@@ -607,9 +621,10 @@ We keep three levels of evidence strictly separate throughout.
 - Behaviour-policy divergence ↔ representation sensitivity (r = .935, n = 4;
   descriptive).
 - Divergence ↔ regime-dependent utility: the pre-specified interaction test is
-  **significant** (χ²(2) = 80.9, p = 2.7e-18; positive in bull, negative in
-  bear/crisis), while the seed-level divergence main effect, controlling for
-  algorithm identity, is **not** (p = .446).
+  **significant** (χ²(2) = 80.9, p = 2.7e-18; slope near zero in bull +0.04,
+  increasingly negative in bear −1.04 and crisis −4.05), while the seed-level
+  divergence main effect, controlling for algorithm identity, is **not**
+  (p = .446).
 - The proposed mechanism in Figure 1.
 
 **Headline.** Decision algorithm is a stronger determinant of downstream
@@ -688,20 +703,30 @@ figure) denote the proposed, untested mechanism.
    The regime-interaction survives a granular clustered test, but divergence as
    a seed-level main effect does not (p = .446); the divergence–sensitivity
    association is n = 4.
-5. **No learned policy exceeded buy-and-hold Sharpe = .784**; 2022 is negative
-   for all algorithms.
+5. **The original representation × decision-algorithm matrix does not exceed
+   buy-and-hold** (Sharpe .784) and 2022 is negative for all algorithms. The
+   later exposure-only and hybrid policies improve the tested risk–return
+   trade-off, but **their paired Sharpe advantages are not statistically
+   significant** on the single four-year test period (all paired bootstrap CIs
+   include zero).
 6. **Cross-market CSI300 results** were close to unsolvable under the tested
-   protocol, limiting conclusions about representation transfer.
+   protocol, limiting conclusions about representation transfer; its exposure
+   frontier is degenerate (flat dominates).
 7. **CQL behaviour depends materially on implementation/regularization
    choices**; the main-table CQL is the regularized variant.
-9. **The regime-gated mechanism is market-specific**: the gate learns a
+8. **The regime-gated mechanism is market-specific**: the gate learns a
    bull-vs-bear asymmetry in every tested market, but the sign of divergence's
    effect differs (deviation pays in bull on SPY, in crisis on NIFTY), so the
    "when to deviate" prior does not transfer unchanged.
-8. The representation-quality framework evaluates **selected measurable
+9. The representation-quality framework evaluates **selected measurable
    properties** (probe recoverability, rank, CKA, perturbation sensitivity); it
    is **not a complete measure of the "information contained"** in a
    representation.
+10. **Uncertainty is used in two distinct senses.** Ensemble predictive
+    disagreement did not provide a useful *directional* signal; in contrast,
+    representation-space **OOD distance** emerged as the strongest at-t input
+    in the exposure ablation. These are different constructs and should not be
+    conflated.
 
 ---
 
@@ -719,9 +744,18 @@ A pre-specified granular test supports the regime-dependent component of this
 mechanism (divergence × regime interaction, p = 2.7e-18) but not divergence as
 a main effect once algorithm identity is controlled (p = .446); the
 divergence–sensitivity association itself remains descriptive at the algorithm
-level. The findings describe the tested offline environment and do not
-demonstrate market-beating performance or a causal effect of policy
-divergence.
+level. Turning from prediction to participation, we then showed that when
+directional skill is unavailable the exploitable margin is exposure/risk
+control: an exposure-only policy improved risk-adjusted utility on
+positive-drift markets, and a continuous risk-aware hybrid recovered most of
+buy-and-hold's participation while retaining the risk timing (NIFTY Sharpe
+1.203 with return .661 vs .694 for buy-and-hold), moving the realized
+risk–return trade-off above the buy-and-hold ray. This improvement is
+directionally consistent across markets and seeds and survives cost robustness,
+but its paired Sharpe advantage is not statistically significant at 5% on the
+single test period, and it is not an efficient-frontier claim. The findings
+describe the tested offline environment and do not demonstrate market-beating
+performance or a causal effect of policy divergence.
 
 ---
 

@@ -46,7 +46,8 @@ def main() -> None:
     box(ax, 5.0, 5.5, "Policy divergence\n(from behavior)", fc="#f7e9df", ec="#8c5b3b")
     box(ax, 2.6, 3.4, "Representation\nsensitivity")
     box(ax, 7.4, 3.4, "Regime-dependent\nutility")
-    box(ax, 5.0, 1.2, "Research hypothesis", w=3.0, h=0.8, fc="#eef7ee", ec="#3b8c4f")
+    box(ax, 5.0, 1.2, "Decision-relevant risk/exposure pathway",
+        w=3.6, h=0.8, fc="#eef7ee", ec="#3b8c4f")
 
     for x in (1.6, 5.0, 8.4):
         arrow(ax, (5, 8.8), (x, 7.85))
@@ -59,8 +60,10 @@ def main() -> None:
 
     ax.text(3.1, 4.45, "associated with\n(descriptive, n=4)", fontsize=7.5,
             color="#666666", ha="center")
-    ax.text(0.2, 0.35, "solid = observed association   |   dashed = proposed mechanism",
-            fontsize=8, color="#555555")
+    ax.text(0.2, 0.35,
+            "solid = observed association | dashed = tested constructively (§4.5-4.9); "
+            "consistent across markets, paired Sharpe advantage not significant at 5%",
+            fontsize=7.2, color="#555555")
 
     fig.tight_layout()
     out = ROOT / "paper" / "rep_mechanism_schematic.png"

@@ -106,13 +106,19 @@ out-of-distribution actions and improve robustness (e.g., uncertainty-penalized
 RL in MOPO-era methods and finetuned value-based approaches). Such mechanisms
 are often motivated in finance as "risk awareness" or "OOD control."
 
-Our evidence does not support extending that narrative to the daily index
-direction problem as implemented here: ensemble disagreement did not predict
-sign errors or adverse P&L on corrected SPY data (§ 4.6). We interpret this as
-a caution: uncertainty-aware RL procedures are not automatically useful for
-financial risk control at this horizon, and should be validated against the
-same null-hypothesis discipline as any other component. (The empirical record
-is negative; the discussion in § 5.6 frames the interpretation.)
+Our evidence separates two distinct notions of uncertainty. **(i) Ensemble
+predictive disagreement** did not predict sign errors or adverse P&L on
+corrected SPY data, i.e. it provided no useful *directional*-risk signal at
+this horizon. **(ii) Representation-space OOD distance** (Mahalanobis distance
+of h_t to the training representation distribution) is different: in the
+adaptive-exposure ablation it emerged as the strongest and most transferable
+at-t input for exposure control (best input subset on SPY, NIFTY and, most
+sharply, CSI300). We therefore do not conclude that "uncertainty-aware control
+is useless"; we conclude that *ensemble disagreement* is not a useful
+directional-risk signal, whereas *representation-distance OOD* is a useful
+exposure-control signal. The two should not be conflated. As always, such
+mechanisms should be validated against the same null-hypothesis discipline as
+any other component.
 
 ## 2.7 Positioning of the present study
 
@@ -140,8 +146,9 @@ The specific claims to distinguish the study from the related work above:
   confidence-sizing rule and a market-dependent finding about volatility
   normalization, rather than a new risk model.
 - **Against 2.6 (uncertainty):** it reports a decisive null for
-  disagreement-based risk control at this horizon, which the uncertainty-aware
-  RL literature does not prominently report as a failed hypothesis.
+  *ensemble-disagreement* control at this horizon, while showing that
+  *representation-space OOD distance* is a useful exposure-control signal — a
+  distinction the uncertainty-aware RL literature tends not to draw.
 
 The claimed novel contribution is therefore the **decomposition + falsifiable
 component-valued baseline** framework applied to offline financial RL, with

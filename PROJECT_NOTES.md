@@ -4614,10 +4614,13 @@ SPEC (fixed before running):
 
 RESULTS:
   Stage 1 PRIMARY = SIGNIFICANT. Joint D x regime chi2(2) = 80.9, p = 2.7e-18.
-      Bull divergence slope +1.08 (p<.0001); crisis slope = bull - 3.01
-      (p=.0002), i.e. ~ -1.9. The utility of departing from the behavior
-      policy is strongly REGIME-DEPENDENT: positive in bull, negative in
-      crisis/bear. (Regime main effect also large - bear/crisis are harder.)
+      ABSOLUTE per-regime divergence slopes (reference = bear, cluster SE):
+      bull +0.04, bear -1.04 (p=.031), crisis -4.05 (bull-vs-bear interaction
+      +1.08, p<.0001; crisis-vs-bear -3.01, p=.0002). The utility of departing
+      from the behavior policy is strongly REGIME-DEPENDENT: near-zero in bull,
+      negative in bear, STRONGLY negative in crisis. (Regime main effect also
+      large - bear/crisis are harder.) NOTE: the figure previously mislabeled
+      the interaction coefficients as slopes (a bug, now fixed - see 8.23).
   Stage 2 SECONDARY = NULL. Seed-level divergence, controlling rep + algo:
       b1 = +0.135, p = .446 (JS variant +0.264, p = .567).
 
@@ -4956,6 +4959,56 @@ model lies on the efficient frontier" (an efficient-frontier claim would need
 mean-variance efficiency relative to the feasible set). On positive-drift
 markets the hybrid sits above the BH ray (higher Sharpe); on CSI300 the frontier
 is trivial.
+
+### 8.23 FIGURE/TEXT CONSISTENCY FIXES + STORY SYNC (2026-09-15)
+-------------------------------------------------------------------------------
+Reviewer caught a numeric contradiction between the divergence x regime FIGURE
+and the frozen regression. Root cause: statsmodels treatment coding makes the
+alphabetically-first level the reference (regime reference = "bear"), and the
+plot code had hard-coded "bull" as reference, so it plotted the interaction
+coefficients as if they were absolute slopes.
+
+CORRECT absolute per-regime divergence-utility slopes (reference = bear,
+cluster SE, from rep_h4_test.py): bull +0.0415, bear -1.0410, crisis -4.0485
+(interactions vs bear: bull +1.0825 p<.0001, crisis -3.0075 p=.0002; joint
+chi2(2)=80.9 p=2.7e-18). Corrected interpretation: divergence is near-ZERO in
+bull (+0.04), negative in bear (-1.04), STRONGLY negative in crisis (-4.05) -
+NOT "positive in bull". Fixes: scripts/rep_h4_test.py (_interaction_figure now
+detects the reference level; print reports absolute slopes); regenerated
+paper/rep_divergence_regime.png; corrected all text (manuscript abstract/SS4.4/
+SS5.1, synthesis SS4.4, this file 8.14). The raw regime CORRELATIONS (bull +.47)
+are reported separately as descriptive and NOT controlling rep/algo.
+
+SCHEMATIC FIX (paper/hybrid_mechanism.png): the directional branch now
+TERMINATES at "No measurable directional skill" and does NOT feed the hybrid;
+only risk-state information (OOD/vol/drawdown) -> e_t and alpha_t ->
+a_t = e_t + alpha_t(1-e_t) -> risk-adjusted utility.
+
+SCHEMATIC RELABEL (paper/rep_mechanism_schematic.png): terminal box changed
+from "Research hypothesis" to "Decision-relevant risk/exposure pathway" with the
+caveat (consistent across markets; paired Sharpe advantage not significant at
+5%).
+
+STORY SYNC: manuscript title -> "What determines risk-adjusted utility in
+offline financial reinforcement learning? Representation, decision algorithm,
+and exposure". Abstract no longer says "none of the learned policies exceeds
+buy-and-hold" broadly; it now distinguishes (a) the original rep x algorithm
+policies (do not exceed BH), from (b) the later exposure/hybrid policies
+(improve the tested risk-return trade-off, but paired Sharpe advantage not
+significant). Uncertainty is explicitly split into two constructs: ensemble
+disagreement (null for direction) vs representation-space OOD (useful for
+exposure) - manuscript limitation 10 and paper/related_work.md SS2.6.
+
+FIGURE HIERARCHY (recommended):
+  Fig 1  experimental decomposition  32 features -> representation -> algorithm
+         -> utility (the rep x algo experiment).
+  Fig 2  mechanism schematic         representation -> risk-state -> exposure
+         -> hybrid (directional branch terminates).
+  Fig 3  OOD/risk mechanism          ablation (OOD/vol/risk subsets) +
+         permutation control.
+  Fig 4  risk-return map             paper/risk_return_frontier.png.
+  divergence x regime -> secondary/appendix figure (belongs to the earlier
+  rep/algorithm mechanism, distinct from the exposure pathway).
 
 ------------------------------------------------------------------------------
 END OF NOTES

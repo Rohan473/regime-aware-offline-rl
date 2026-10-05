@@ -45,6 +45,10 @@ def _interaction_figure(long, model, path) -> None:
 
     regimes = ["bull", "bear", "crisis"]
     marks = {"bull": "o", "bear": "s", "crisis": "^"}
+    # detect the reference level (the one with no D:C interaction term)
+    inter = [t for t in model.params.index if t.startswith("D:C")]
+    levels = {t.split("[T.")[1].rstrip("]") for t in inter}
+    ref = (set(regimes) - levels).pop()
     fig, ax = plt.subplots(figsize=(6.4, 4.6))
     lo, hi = long["D"].min(), long["D"].max()
     xs = np.linspace(lo, hi, 20)
@@ -52,16 +56,15 @@ def _interaction_figure(long, model, path) -> None:
     for g in regimes:
         sub = long[long["regime"] == g]
         ax.scatter(sub["D"], sub["U_g"], s=16, alpha=0.6, marker=marks[g], label=g)
-        # marginal slope within regime (regime-mean-adjusted line, rep/algo at means)
-        coef = model.params.get(f"D:C(regime)[T.{g}]", 0.0) if g != "bull" else 0.0
-        intercept = model.params.get("C(regime)[T.%s]" % (g if g != "bull" else "b"), 0.0)
-        slope = model.params["D"] + coef
+        coef = 0.0 if g == ref else model.params.get(f"D:C(regime)[T.{g}]", 0.0)
+        slope = model.params["D"] + coef  # absolute per-regime slope (ref = bear)
+        intercept = 0.0 if g == ref else model.params.get(f"C(regime)[T.{g}]", 0.0)
         ax.plot(xs, intercept + slope * (xs - base), lw=1.6,
                 label=f"{g} slope {slope:+.2f}")
     ax.axhline(0, color="k", lw=0.6)
     ax.set_xlabel("policy divergence from behavior")
-    ax.set_ylabel("regime-conditioned Sharpe")
-    ax.set_title("Divergence x regime -> utility (pre-specified test)")
+    ax.set_ylabel("regime-conditioned Sharpe (regime-mean adjusted)")
+    ax.set_title(f"Divergence x regime -> utility (slopes, ref={ref})")
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(path, dpi=150)
@@ -133,9 +136,18 @@ def main() -> None:
     print("Key result Stage 1: divergence x regime interaction (joint chi2): "
           f"chi2={float(row['statistic']):.1f} (df={int(row['df_constraint'])}), "
           f"p={float(row['pvalue']):.2e}")
-    for term in ("D:C(regime)[T.bear]", "D:C(regime)[T.crisis]"):
-        if term in m1.params:
-            print(f"  {term}: coef {m1.params[term]:+.4f}, p={m1.pvalues[term]:.4f}")
+    b1 = m1.params["D"]
+    _inter = [t for t in m1.params.index if t.startswith("D:C")]
+    _ref = ({"bull", "bear", "crisis"} - {t.split("[T.")[1].rstrip("]") for t in _inter}).pop()
+    print(f"  reference regime = {_ref}; D main effect (ref slope) = {b1:+.4f}")
+    for g in ("bull", "bear", "crisis"):
+        if g == _ref:
+            print(f"  absolute {g:6s} slope = {b1:+.4f}  (reference)")
+        else:
+            coef = m1.params.get(f"D:C(regime)[T.{g}]", 0.0)
+            pv = m1.pvalues.get(f"D:C(regime)[T.{g}]", float("nan"))
+            print(f"  absolute {g:6s} slope = {b1 + coef:+.4f}  "
+                  f"(vs {_ref}: {coef:+.4f}, p={pv:.4f})")
     print("\nNote: these are OLS associations, not causal; the design is frozen.")
     print("wrote rep_h4.csv under", OUT_DIR)
 
