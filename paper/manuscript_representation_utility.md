@@ -655,8 +655,9 @@ algorithms and remains a hypothesis requiring further investigation. The
 regime-gated policy of §4.5 provides constructive evidence for the mechanism:
 an offline policy can learn to scale its divergence by a regime estimate,
 beating both the conservative (BC) and fully-deviating (A2C) endpoints and
-matching a look-ahead oracle — while leaving the utility gain modest and at/below
-the buy-and-hold baseline.
+approaching the look-ahead oracle on the predictive representation while
+remaining below it on the contrastive representation — while leaving the
+utility gain modest and at/below the buy-and-hold baseline.
 
 ### 5.2 Seed variability and statistical power
 
