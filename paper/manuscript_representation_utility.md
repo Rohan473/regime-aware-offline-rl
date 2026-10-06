@@ -1,11 +1,5 @@
 # What determines risk-adjusted utility in offline financial reinforcement learning? Representation, decision algorithm, and exposure
 
-> Drafting note: citations use well-known landmarks; author/year/venue details
-> should be verified against the target journal's style during packaging. Every
-> empirical statement below is traceable to PROJECT_NOTES §8 and the CSV
-> artifacts listed under "Reproducibility". No claim is stronger than the
-> frozen evidence hierarchy in §5.1.
-
 ---
 
 ## Abstract

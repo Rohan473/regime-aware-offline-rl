@@ -109,7 +109,7 @@ def main() -> None:
             f"<div class='cover'><div class='t'>What determines risk-adjusted utility "
             f"in offline financial reinforcement learning?</div>"
             f"<div class='s'>Representation, decision algorithm, and exposure</div>"
-            f"<div class='s'>Manuscript draft</div></div>{body}</body></html>")
+            f"</div>{body}</body></html>")
     with OUT.open("wb") as fh:
         res = pisa.CreatePDF(src=html, dest=fh, encoding="utf-8")
     if res.err:
