@@ -40,9 +40,12 @@ controlled (p = .446).
 **Decision algorithm is a stronger determinant of downstream utility than
 representation identity in the tested setting.** The original representation ×
 decision-algorithm policies do not exceed a buy-and-hold baseline; subsequent
-exposure-only and hybrid policies improve the tested risk–return trade-off,
-although their paired Sharpe advantages are not statistically significant over
-the single four-year test period.
+exposure-only and hybrid policies improve the tested risk–return trade-off. The
+hybrid's advantage over buy-and-hold is directionally consistent and seed-robust
+on SPY, but is **not statistically established when both training and
+finite-test-path uncertainty are considered**: the SPY seed-level interval
+excludes zero while the finite-path interval does not, and NIFTY/CSI300 are not
+seed-level significant.
 
 **Summary.** Offline financial RL does not need reliable directional prediction
 to extract decision-relevant information from learned representations. In the
@@ -580,7 +583,11 @@ CSI300 the seed-level difference is not significant (6/10 and 5/10 positive).
 We therefore report the hybrid's advantage as **directionally consistent and
 nontrivial in magnitude, but not statistically established on this horizon**;
 seed-level intervals quantify training uncertainty, date-block intervals
-quantify path uncertainty.
+quantify path uncertainty. Stated precisely: the SPY advantage is robust across
+training seeds, but the finite test-path interval includes zero; NIFTY and
+CSI300 are not seed-level significant. Thus the hybrid improvement is **not
+statistically established when both training and finite-test-path uncertainty
+are considered**.
 
 **Input ablation (10 seeds):** OOD distance is the most valuable and robust
 at-t input — best on all three markets, and dramatically so on CSI300
@@ -596,9 +603,10 @@ contemporaneous volatility (Pearson r = .72 SPY, .84 NIFTY, .78 CSI300 on
 train+val), and also with forward 5-day volatility (.55/.67/.52) and drawdown
 state (−.67/−.71/−.38); it is **not** orthogonal to volatility. However, the
 ablation shows the two inputs behave differently — on CSI300 OOD is the best
-input (−.124) while volatility is the worst (−.434) — so OOD carries information
-beyond contemporaneous volatility, concentrated in large distribution-shift
-states. We state this plainly rather than claiming OOD is a distinct signal.
+input (−.124) while volatility is the worst (−.434) — so OOD appears to carry
+decision-relevant information not captured by contemporaneous volatility alone
+under the tested ablation, concentrated in large distribution-shift states. We
+state this plainly rather than claiming OOD is a distinct signal.
 
 **Permutation control (temporal-alignment check):** shuffling the learned α
 across dates (destroying its time alignment, keeping its distribution) reduces
@@ -813,12 +821,12 @@ level. Turning from prediction to participation, we then showed that when
 directional skill is unavailable the exploitable margin is exposure/risk
 control: an exposure-only policy improved risk-adjusted utility on
 positive-drift markets, and a continuous risk-aware hybrid recovered most of
-buy-and-hold's participation while retaining the risk timing (NIFTY Sharpe
-1.203 with return .661 vs .694 for buy-and-hold), moving the realized
-risk–return trade-off above the buy-and-hold ray. This improvement is
-directionally consistent across markets and seeds and survives cost robustness,
-but its paired Sharpe advantage is not statistically significant at 5% on the
-single test period, and it is not an efficient-frontier claim. The strongest
+buy-and-hold's participation while retaining risk timing. In the 10-seed
+validation, the hybrid achieved a mean Sharpe of 1.074 on NIFTY versus 1.006
+for buy-and-hold, although the finite-test-path interval for the paired
+difference included zero. The advantage is directionally consistent across
+markets and seeds and survives cost robustness; it is not an efficient-frontier
+claim. The strongest
 final message is: **offline financial RL does not need reliable directional
 prediction to extract decision-relevant information from learned
 representations — in the tested setting that information is more useful for
