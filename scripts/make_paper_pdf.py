@@ -63,11 +63,11 @@ def build_html() -> str:
         text, extensions=["tables", "fenced_code", "sane_lists", "attr_list",
                           "md_in_html"])
     # figures (absolute file:// paths so xhtml2pdf resolves them)
-    mech = (PAPER / "rep_mechanism_schematic.png").as_uri()
+    fig1 = (PAPER / "fig1_pathway.png").as_uri()
     hyb = (PAPER / "hybrid_mechanism.png").as_uri()
     front = (PAPER / "risk_return_frontier.png").as_uri()
     div = (PAPER / "rep_divergence_regime.png").as_uri()
-    body = insert_before(body, "4.6 Why", fig_block(mech, "Figure 1. Decision-relevant pathway: representation -> directional information (terminates, ~chance) / risk-state information -> adaptive exposure -> hybrid. Consistent across tested markets; paired Sharpe advantage not significant at 5%."))
+    body = insert_before(body, "2. Related work", fig_block(fig1, "Figure 1. Decision-relevant risk/exposure pathway: directional information terminates (no measurable skill); risk-state information supports adaptive exposure and a risk-aware hybrid. Dashed arrows mark the mechanism tested in §4.5-4.9."))
     body = insert_before(body, "4.7 Exposure", fig_block(hyb, "Figure 2. Hybrid exposure pathway: a_t = e_t + alpha_t(1 - e_t); the directional branch terminates at no measurable skill."))
     body = insert_before(body, "5. Discussion", fig_block(front, "Figure 3. Risk-return map: the constant-exposure family lies on the buy-and-hold ray; adaptive/hybrid policies sit above it on positive-drift markets."))
     body = insert_before(body, "Appendix A", fig_block(div, "Figure A1. Divergence x regime: absolute per-regime slopes (bull +0.04, bear -1.04, crisis -4.05); joint chi2(2)=80.9."))

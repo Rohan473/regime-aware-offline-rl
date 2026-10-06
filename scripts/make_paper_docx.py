@@ -25,11 +25,11 @@ OUT = PAPER / "manuscript_representation_utility.docx"
 BODY_FONT = "Calibri"
 MONO_FONT = "Consolas"
 FIGS = [
-    ("4.6 Why", "rep_mechanism_schematic.png",
-     "Figure 1. Decision-relevant pathway: representation -> directional "
-     "information (terminates, ~chance) / risk-state information -> adaptive "
-     "exposure -> hybrid. Consistent across tested markets; paired Sharpe "
-     "advantage not significant at 5%."),
+    ("2. Related work", "fig1_pathway.png",
+     "Figure 1. Decision-relevant risk/exposure pathway: directional "
+     "information terminates (no measurable skill); risk-state information "
+     "supports adaptive exposure and a risk-aware hybrid. Dashed arrows mark "
+     "the mechanism tested in §4.5-4.9."),
     ("4.7 Exposure", "hybrid_mechanism.png",
      "Figure 2. Hybrid exposure pathway: a_t = e_t + alpha_t(1 - e_t)."),
     ("5. Discussion", "risk_return_frontier.png",
