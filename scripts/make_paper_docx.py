@@ -125,6 +125,15 @@ def main() -> None:
                 row = tbl.add_row().cells
                 for i, c in enumerate(cells[:ncol]):
                     row[i].text = c.get_text(" ", strip=True)
+            # do not split rows across pages, and keep the table together
+            from docx.oxml import OxmlElement
+            for trow in tbl.rows:
+                trPr = trow._tr.get_or_add_trPr()
+                trPr.append(OxmlElement("w:cantSplit"))
+            for trow in tbl.rows[:-1]:
+                for cell in trow.cells:
+                    for p in cell.paragraphs:
+                        p.paragraph_format.keep_with_next = True
         elif name == "pre":
             par = doc.add_paragraph()
             for i, line in enumerate(el.get_text().rstrip("\n").split("\n")):

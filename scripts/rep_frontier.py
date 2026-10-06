@@ -181,23 +181,36 @@ def main() -> None:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        fig, axes = plt.subplots(1, len(markets), figsize=(6 * len(markets), 5),
+        key = ["buy_and_hold", "adaptive", "regime_constrained", "floor_50", "hybrid"]
+        offsets = {  # spread labels away from the BH ray / each other
+            "buy_and_hold": (6, 6), "adaptive": (-52, 6), "regime_constrained": (-58, -12),
+            "floor_50": (6, -12), "hybrid": (6, 6),
+        }
+        fig, axes = plt.subplots(1, len(markets), figsize=(6.6 * len(markets), 5.2),
                                  squeeze=False)
         for ax, market in zip(axes[0], markets):
             g = df[df["market"] == market]
-            ax.scatter(g["ann_vol"], g["ann_return"], s=24, c="#3b5b8c")
-            for _, row in g.iterrows():
-                ax.annotate(row["policy"], (row["ann_vol"], row["ann_return"]),
-                            fontsize=6.5, xytext=(3, 3), textcoords="offset points")
             bh = g[g["policy"] == "buy_and_hold"].iloc[0]
             xs = np.linspace(0, g["ann_vol"].max() * 1.05, 20)
-            ax.plot(xs, bh["sharpe"] * xs, "--", color="#8c3b3b", lw=1,
+            ax.plot(xs, bh["sharpe"] * xs, "--", color="#8c3b3b", lw=1, zorder=1,
                     label=f"BH ray (Sharpe {bh['sharpe']:.2f})")
+            # grid points (constant / blend) unlabelled
+            grid = g[~g["policy"].isin(key)]
+            ax.scatter(grid["ann_vol"], grid["ann_return"], s=14, c="#9bb0cc", zorder=2)
+            kg = g[g["policy"].isin(key)]
+            ax.scatter(kg["ann_vol"], kg["ann_return"], s=42, c="#22456b", zorder=3)
+            for _, row in kg.iterrows():
+                ax.annotate(row["policy"], (row["ann_vol"], row["ann_return"]),
+                            fontsize=7.5, zorder=5,
+                            xytext=offsets.get(row["policy"], (6, 6)),
+                            textcoords="offset points",
+                            bbox=dict(boxstyle="round,pad=0.15", fc="white",
+                                      ec="none", alpha=0.85))
             ax.axhline(0, color="k", lw=0.5)
             ax.set_xlabel("annualized volatility")
             ax.set_ylabel("annualized return")
             ax.set_title(market)
-            ax.legend(fontsize=8)
+            ax.legend(fontsize=8, loc="lower right")
         fig.tight_layout()
         fig.savefig(ROOT / "paper" / "risk_return_frontier.png", dpi=150)
         print("\nwrote paper/risk_return_frontier.png")

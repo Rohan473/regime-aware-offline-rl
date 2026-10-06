@@ -92,7 +92,9 @@ def main() -> None:
     h2 {{ font-size: 14pt; margin: 16pt 0 6pt 0; border-bottom: 1px solid #ccc; padding-bottom: 2pt; }}
     h3 {{ font-size: 11.5pt; margin: 12pt 0 4pt 0; }}
     p {{ margin: 5pt 0; text-align: left; }}
-    table {{ border-collapse: collapse; width: 100%; margin: 8pt 0; font-size: 9pt; }}
+    table {{ border-collapse: collapse; width: 100%; margin: 8pt 0; font-size: 9pt;
+             page-break-inside: avoid; -pdf-keep-with-next: false; }}
+    tr {{ page-break-inside: avoid; page-break-after: avoid; }}
     th, td {{ border: 1px solid #bbb; padding: 3pt 5pt; text-align: left; }}
     th {{ background: #eef3fb; }}
     pre {{ font-family: Mono; font-size: 8pt; background: #f6f6f6; padding: 6pt;
