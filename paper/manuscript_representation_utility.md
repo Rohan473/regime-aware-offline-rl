@@ -31,7 +31,7 @@ formal two-way ANOVA over 4 representations × 4 decision algorithms × 10 seeds
 (F(3,144) = 9.05, p < .0001, η² = .142); representation identity is marginal
 (p = .067) and the representation × algorithm interaction is not statistically
 established (p = .206). A pre-specified follow-up test shows the utility of
-behaviour-policy divergence is strongly regime-dependent (divergence × regime
+behavior-policy divergence is strongly regime-dependent (divergence × regime
 interaction χ²(2) = 80.9, p = 2.7e-18: the divergence slope is near zero in
 bull (+0.04) and increasingly negative in bear (−1.04) and crisis (−4.05)),
 while divergence alone does not predict utility once algorithm identity is
@@ -95,7 +95,7 @@ evidence that the original representation × algorithm hypothesis was confirmed.
    availability, representation encoding, and downstream decision optimization
    in a 4 × 4 × 10 representation × decision-algorithm experiment with fixed
    transitions and evaluation, plus feature- and latent-dimension sweeps.
-2. **Representation-information characterisation.** We combine linear,
+2. **Representation-information characterization.** We combine linear,
    nonlinear, reconstruction, effective-rank, CKA, and perturbation diagnostics
    to separate information accessibility from downstream trading utility.
 3. **Statistical evidence on decision optimization.** We show that
@@ -104,7 +104,7 @@ evidence that the original representation × algorithm hypothesis was confirmed.
    representation identity is marginal (p = .067) and the interaction is not
    statistically established (p = .206).
 4. **Regime-dependent divergence and exposure mechanism.** We show that the
-   association between behaviour-policy divergence and utility changes sharply
+   association between behavior-policy divergence and utility changes sharply
    across market regimes, and that representation-space risk information can
    instead be exploited through adaptive exposure control.
 5. **Risk-aware constructive extension.** We evaluate exposure-only and
@@ -116,8 +116,9 @@ evidence that the original representation × algorithm hypothesis was confirmed.
 
 ## 2. Related work
 
-**Offline RL algorithms.** Behaviour cloning regresses actions on states
-(Pomerleau, 1991). Value-based offline RL addresses distributional shift with
+**Offline RL algorithms.** Behavior cloning learns a policy from logged
+state–action demonstrations (Bain & Sammut, 1995); the earliest end-to-end
+demonstration was Pomerleau (1991). Value-based offline RL addresses distributional shift with
 conservatism or in-sample value estimation: BCQ (Fujimoto et al., 2019), CQL
 (Kumar et al., 2020), IQL (Kostrikov et al., 2022), and TD3+BC (Fujimoto & Gu,
 2021). We use BC, A2C (Mnih et al., 2016), IQL, and CQL on a common offline
@@ -177,7 +178,7 @@ swept over 4/8/16/32/64/128.
 ### 3.3 Decision algorithms
 
 Given a frozen representation h_t, we train four decision algorithms on the
-**same** offline transition dataset (32 logged behaviour policies) with
+**same** offline transition dataset (32 logged behavior policies) with
 identical splits, evaluation code, and transaction-cost assumptions:
 
 - **BC** — deterministic policy regressed on logged actions;
@@ -204,7 +205,7 @@ rank, and linear CKA between representations and across seeds.
 
 Downstream utility is the annualized Sharpe ratio of the deterministic policy
 applied to realized market returns on the test split. We also report trivial
-baselines: buy-and-hold, constant-mean action, per-date behaviour-mean action,
+baselines: buy-and-hold, constant-mean action, per-date behavior-mean action,
 and random actions.
 
 ### 3.6 Statistical analysis
@@ -221,8 +222,8 @@ and random actions.
 - **Mechanism (pre-specified, one run)**: a primary test of the divergence ×
   regime interaction on regime-specific utility (n = 144, clustered SEs,
   representation and algorithm as controls) and a secondary seed-level test of
-  divergence on utility (n = 48, same controls), using behaviour-policy
-  divergence (mean |a_policy − a_behaviour|) and action-distribution JS
+  divergence on utility (n = 48, same controls), using behavior-policy
+  divergence (mean |a_policy − a_behavior|) and action-distribution JS
   divergence.
 
 ---
@@ -273,7 +274,7 @@ Test Sharpe (10 seeds), same frozen representations and transitions:
 | predictive | .617 | .631 | .628 | .676 |
 | contrastive | .527 | .641 | .621 | .709 |
 
-Baselines: **buy-and-hold .784**, constant_mean .784, behaviour_mean .725,
+Baselines: **buy-and-hold .784**, constant_mean .784, behavior_mean .725,
 random −.456. **No policy in this representation × algorithm matrix exceeds
 buy-and-hold** (later exposure-only and hybrid policies improve the
 risk–return trade-off; §4.7–4.9).
@@ -298,14 +299,14 @@ downstream utility.
 
 ### 4.4 Why does algorithm choice change representation sensitivity?
 
-| algorithm | Sharpe range | CV | mean divergence from behaviour |
+| algorithm | Sharpe range | CV | mean divergence from behavior |
 |---|---|---|---|
 | BC | .051 | .035 | .067 |
 | IQL | .069 | .054 | .068 |
 | CQL | .194 | .120 | .732 |
 | A2C | .255 | .218 | .642 |
 
-BC and IQL stay within ≈0.07 of the logged behaviour policy and are nearly
+BC and IQL stay within ≈0.07 of the logged behavior policy and are nearly
 representation-insensitive; A2C and CQL depart by .64–.73 and are 3–5× more
 sensitive. Across the four algorithms the association is strong (Pearson
 r = .935, Spearman .80), but with n = 4 this is **descriptive only**. At the
@@ -334,7 +335,7 @@ on the existing seed-level data (no new training), two pre-registered models:
   representation and algorithm — n = 48.
 
 Stage 1 is **significant** (joint χ²(2) = 80.9, p = 2.7e-18). We find evidence
-that the association between behaviour-policy divergence and utility is
+that the association between behavior-policy divergence and utility is
 strongly regime-dependent: divergence is approximately neutral in bull regimes
 (absolute slope **+0.04**), negatively associated with utility in bear regimes
 (**−1.04**), and most strongly negative in crisis regimes (**−4.05**). Stage 2
@@ -358,18 +359,18 @@ remain conservative. We test this constructively with a regime-gated policy
 
 a_t = clip(a_beh_t + λ_t · d_t),
 
-where a_beh_t is the behaviour-mean action (the conservative anchor), d_t is a
+where a_beh_t is the behavior-mean action (the conservative anchor), d_t is a
 learned deviation, λ_t = σ(g(h_t)) ∈ (0,1) is a learned safety gate, and a
 logistic regime head on h_t (train-only) supplies risk_t = P(bear) + P(crisis).
 Training is the same offline actor–critic as the matrix, plus an uncertainty
 constraint ρ·E[λ_t · risk_t] that pushes the gate down in risky states. We
-compare against behaviour cloning (λ = 0), unconstrained A2C (full deviation),
+compare against behavior cloning (λ = 0), unconstrained A2C (full deviation),
 an unconstrained adaptive gate (ρ = 0), and a look-ahead oracle gate (λ = 1 in
 bull, .1 otherwise), all on the same frozen representations and transitions.
 
 | policy (predictive / contrastive) | test Sharpe, mean (std), 10 seeds |
 |---|---|
-| behaviour clone (λ = 0) | .725 |
+| behavior clone (λ = 0) | .725 |
 | A2C (full deviation) | .617 (.09) / .527 (.39) |
 | gated, ρ = 0 | .782 (.23) / .784 (.19) |
 | **gated, ρ = 1 (proposed)** | **.757 (.06) / .759 (.06)** |
@@ -388,7 +389,7 @@ other markets.)
 **Finding (constructive support for the mechanism).** An offline RL system can
 learn when it is safe to deviate from observed behavior and when to stay
 conservative: adaptive gating dominates both the conservative (BC) and the
-fully-deviating (A2C) endpoints and approaches the oracle. Gains over behaviour
+fully-deviating (A2C) endpoints and approaches the oracle. Gains over behavior
 cloning are modest and at/below the buy-and-hold baseline.
 
 ### 4.6 Why is learned utility below buy-and-hold? A decomposition
@@ -661,7 +662,7 @@ both extremes and performs comparably to the oracle on the predictive
 representation); on CSI300 the test period is
 unsolvable (all variants negative, a crisis-driven rally); on NIFTY the
 bear/crisis penalty is wrong because crisis deviation pays (A2C crisis 2.86 vs
-behaviour −0.71), so the gate loses to unconstrained A2C (.622 vs .705).
+behavior −0.71), so the gate loses to unconstrained A2C (.622 vs .705).
 "When it is safe to deviate" is therefore not a universal rule: the gate
 reflects the training market's regime structure and the risk prior does not
 transfer unchanged.
@@ -755,7 +756,7 @@ figure) denote the mechanism tested constructively in §4.5–4.9: it is
 consistent across the tested markets, but the paired Sharpe advantage is not
 statistically significant at 5% on the single four-year test period.
 
-> **Tested mechanism (with caveat).** Observed behaviour-policy divergence is
+> **Tested mechanism (with caveat).** Observed behavior-policy divergence is
 > associated at the algorithm level with representation sensitivity; the
 > divergence–utility association is strongly regime-dependent; and a
 > representation-space risk pathway (OOD/volatility) supports adaptive exposure
@@ -785,7 +786,7 @@ statistically significant at 5% on the single four-year test period.
 6. **Cross-market CSI300 results** were close to unsolvable under the tested
    protocol, limiting conclusions about representation transfer; its exposure
    evaluated risk–return set is degenerate over the test period (flat dominates).
-7. **CQL behaviour depends materially on implementation/regularization
+7. **CQL behavior depends materially on implementation/regularization
    choices**; the main-table CQL is the regularized variant.
 8. **The regime-gated mechanism is market-specific**: the gate learns a
    bull-vs-bear asymmetry in every tested market, but the sign of divergence's
@@ -896,33 +897,42 @@ All tables are generated by scripts under `scripts/` and written to
 
 ## References
 
+Reinforcement learning and representation learning:
+
 - Agarwal, R., Schwarzer, M., Castro, P. S., & Courville, A. (2021). Deep
-  reinforcement learning at the edge of the statistical precipice. NeurIPS.
+  reinforcement learning at the edge of the statistical precipice. Advances in
+  Neural Information Processing Systems, 34.
 - Alain, G., & Bengio, Y. (2017). Understanding intermediate layers using
   linear classifier probes. ICLR Workshop.
+- Bain, M., & Sammut, C. (1995). A framework for behavioural cloning. Machine
+  Intelligence, 15, 103–129.
 - Chen, L., Lu, K., Rajeswaran, A., Lee, K., Grover, A., Laskin, M., Abbeel,
-  P., Srinivas, A., & Mordatch, I. (2021). Decision Transformer. NeurIPS.
+  P., Srinivas, A., & Mordatch, I. (2021). Decision Transformer. Advances in
+  Neural Information Processing Systems, 34.
 - Chen, T., Kornblith, S., Norouzi, M., & Hinton, G. (2020). A simple framework
-  for contrastive learning of visual representations. ICML.
+  for contrastive learning of visual representations. ICML, PMLR 119,
+  1597–1607.
 - Deng, Y., Bao, F., Kong, Y., Ren, Z., & Dai, Q. (2017). Deep direct
   reinforcement learning for financial signal representation and trading. IEEE
-  TNNLS.
+  Transactions on Neural Networks and Learning Systems, 28(3), 653–664.
 - Fujimoto, S., & Gu, S. S. (2021). A minimalist approach to offline
-  reinforcement learning. NeurIPS.
+  reinforcement learning. Advances in Neural Information Processing Systems, 34.
 - Fujimoto, S., Meger, D., & Precup, D. (2019). Off-policy deep reinforcement
-  learning without exploration. ICML.
+  learning without exploration. ICML, PMLR 97, 2052–2062.
 - Henderson, P., Islam, R., Bachman, P., Pineau, J., Precup, D., & Meger, D.
   (2018). Deep reinforcement learning that matters. AAAI.
 - Janner, M., Li, Q., & Levine, S. (2021). Offline reinforcement learning as
-  one big sequence modeling problem. NeurIPS.
+  one big sequence modeling problem. Advances in Neural Information Processing
+  Systems, 34.
 - Jiang, Z., Xu, D., & Liang, J. (2017). A deep reinforcement learning
   framework for the financial portfolio management problem. arXiv:1706.10059.
 - Kornblith, S., Norouzi, M., Lee, H., & Hinton, G. (2019). Similarity of
-  neural network representations revisited. ICML.
+  neural network representations revisited. ICML, PMLR 97, 3519–3529.
 - Kostrikov, I., Nair, A., & Levine, S. (2022). Offline reinforcement learning
   with implicit Q-learning. ICLR.
 - Kumar, A., Zhou, A., Tucker, G., & Levine, S. (2020). Conservative Q-learning
-  for offline reinforcement learning. NeurIPS.
+  for offline reinforcement learning. Advances in Neural Information Processing
+  Systems, 33.
 - Levine, S., Kumar, A., Tucker, G., & Fu, J. (2020). Offline reinforcement
   learning: tutorial, review, and perspectives on open problems.
   arXiv:2005.01643.
@@ -930,33 +940,35 @@ All tables are generated by scripts under `scripts/` and written to
   Silver, D., & Kavukcuoglu, K. (2016). Asynchronous methods for deep
   reinforcement learning. ICML.
 - Moody, J., & Saffell, M. (2001). Learning to trade via direct reinforcement.
-  IEEE Transactions on Neural Networks.
+  IEEE Transactions on Neural Networks, 12(4), 875–889.
 - Pomerleau, D. A. (1991). Efficient training of artificial neural networks for
-  autonomous navigation. Neural Computation.
+  autonomous navigation. Neural Computation, 3(1), 88–97.
 - Roy, O., & Vetterli, M. (2007). The effective rank: a measure of effective
   dimensionality. EUSIPCO.
 - van den Oord, A., Li, Y., & Vinyals, O. (2018). Representation learning with
   contrastive predictive coding. arXiv:1807.03748.
 
-Quantitative-finance, statistics, and regime references:
+Quantitative finance, statistics, and regime references:
 
-- Bailey, D. H., & López de Prado, M. (2014). The deflated Sharpe ratio:
-  correcting for selection bias, backtest overfitting, and non-normality.
-  Journal of Portfolio Management.
-- Bollen, N. P. B., & Whaley, R. E. (2004). Does net buying pressure affect the
-  shape of implied volatility functions? Journal of Finance.
-- Fama, E. F., & French, K. R. (1993). Common risk factors in the returns on
-  stocks and bonds. Journal of Financial Economics.
-- Hamilton, J. D. (1989). A new approach to the economic analysis of
-  nonstationary time series and the business cycle. Econometrica (regime
-  switching / Markov-switching models).
-- Lo, A. W. (2002). The statistics of Sharpe ratios. Financial Analysts Journal.
-- Markowitz, H. (1952). Portfolio selection. Journal of Finance (mean–variance
-  frontier, the benchmark against which we deliberately limit our claims).
-- Liu, W., Wang, X., Owens, J., & Li, Y. (2020). Energy-based
-  out-of-distribution detection for reliable deep learning. ECCV (OOD scoring,
-  related to our representation-space distance measure).
-- Zhang, Z., Zohren, S., & Roberts, S. (2020). Deep reinforcement learning for
-  trading. Journal of Financial Data Science (survey; positioning).
 - Ang, A., & Bekaert, G. (2002). International asset allocation with regime
-  shifts. Review of Financial Studies (regime-dependent allocation).
+  shifts. The Review of Financial Studies, 15(4), 1137–1187.
+- Bailey, D. H., & López de Prado, M. (2014). The deflated Sharpe ratio:
+  correcting for selection bias, backtest overfitting, and non-normality. The
+  Journal of Portfolio Management, 40(5), 94–107.
+- Bollen, N. P. B., & Whaley, R. E. (2004). Does net buying pressure affect the
+  shape of implied volatility functions? The Journal of Finance, 59(2), 711–753.
+- Fama, E. F., & French, K. R. (1993). Common risk factors in the returns on
+  stocks and bonds. Journal of Financial Economics, 33(1), 3–56.
+- Hamilton, J. D. (1989). A new approach to the economic analysis of
+  nonstationary time series and the business cycle. Econometrica, 57(2),
+  357–384.
+- Liu, W., Wang, X., Owens, J., & Li, Y. (2020). Energy-based
+  out-of-distribution detection. Advances in Neural Information Processing
+  Systems, 33, 21464–21475.
+- Lo, A. W. (2002). The statistics of Sharpe ratios. Financial Analysts
+  Journal, 58(4), 36–52.
+- Markowitz, H. (1952). Portfolio selection. The Journal of Finance, 7(1),
+  77–91.
+- Zhang, Z., Zohren, S., & Roberts, S. (2020). Deep reinforcement learning for
+  trading. The Journal of Financial Data Science, 2(2), 25–40. (overview;
+  positioning)
