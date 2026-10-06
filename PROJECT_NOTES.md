@@ -5038,6 +5038,45 @@ mechanism (rep -> directional(terminates)/risk-state -> exposure -> hybrid);
 Fig3 OOD/vol ablations + permutation; Fig4 risk-return map; divergence x regime
 = appendix/secondary.
 
+### 8.25 SUBMISSION-READINESS REVISION (2026-09-15)
+-------------------------------------------------------------------------------
+Addressed reviewer's 5 must-fixes (no new experiments). New code:
+scripts/rep_hybrid_seedstats.py, scripts/rep_ood_diagnostic.py.
+
+1. SEED-LEVEL INFERENCE (critical). Separated stochastic-training uncertainty
+   (10 seeds) from finite-test-path uncertainty (date-block bootstrap). Seed
+   paired Delta_s = Sharpe_hybrid,s - Sharpe_BH:
+     SPY    +.121 (sd .039) seed-boot 95% CI [+.096,+.141], Wilcoxon p=.002,
+            10/10 positive -> SEED-ROBUST; but date-block CI [-.059,.294]
+            includes 0 -> small vs single-path noise.
+     NIFTY  +.068 CI [-.013,+.151], p=.193, 6/10 -> ns.
+     CSI300 +.015 CI [-.030,+.062], p=.695, 5/10 -> ns.
+   => hybrid advantage: directionally consistent and nontrivial in magnitude,
+   but NOT statistically established on this horizon; training- vs path-
+   uncertainty reported separately.
+2. DEVELOPMENT vs VALIDATION (critical). Appendix B table: representation/
+   hybrid form/alpha inputs/{risk,ood,vol}/3-param head/test period all fixed
+   before the 10-seed run; the 10-seed value is the headline (exploratory
+   NIFTY 1.203 superseded by validated 1.074). Added an explicit two-stage
+   paragraph in the Introduction.
+3. OOD vs VOLATILITY (high). rep_ood_diagnostic: OOD~vol Pearson r = .72 SPY /
+   .84 NIFTY / .78 CSI300 (train+val); OOD~fwd_vol_5 .55/.67/.52;
+   OOD~drawdown60 -.67/-.71/-.38. OOD is NOT orthogonal to volatility, BUT the
+   ablation shows they differ (CSI300: OOD best -.124 vs vol worst -.434).
+   Stated plainly, no overclaim.
+4. PERMUTATION WORDING softened: "supports a genuine contribution from temporal
+   alignment ... provides a check against accidental timing artifacts (does not
+   by itself prove absence of look-ahead)".
+5. 5 vs 10 SEED made explicit ("development" vs "primary validation"); the
+   abstract/conclusion now quote the 10-seed values.
+
+Also: contributions rewritten as 5 items; "economically meaningful" ->
+"nontrivial in magnitude, not statistically established"; "frontier is
+degenerate" -> "evaluated risk-return set is degenerate over this test period";
+references expanded (Lo 2002; Bailey & Lopez de Prado 2014; Markowitz 1952;
+Hamilton 1989; Liu et al. 2020 OOD; Zhang et al. 2020; Ang & Bekaert 2002;
+Fama-French 1993). PDF regenerated (22 pp).
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

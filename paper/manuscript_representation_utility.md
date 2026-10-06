@@ -78,19 +78,36 @@ controlled: a shared recurrent encoder over trailing windows of point-in-time
 financial features, four representation-learning objectives, and four decision
 algorithms trained on the same logged transitions.
 
+**Two stages.** The study has two stages. First, we establish what determines
+utility in a controlled representation × decision-algorithm experiment.
+Second, motivated by the finding that directional information is not
+recoverable while risk-state information remains accessible, we test whether
+that information can be used for exposure rather than directional control. The
+second stage is treated as a **constructive extension** of the first, not as
+evidence that the original representation × algorithm hypothesis was confirmed.
+
 **Contributions.**
 
-- A controlled **representation × decision-algorithm** evaluation on daily SPY
-  data with feature- and latent-dimension sweeps (10 seeds per cell).
-- A **multi-probe** characterisation of what representations encode, including
-  nonlinear probes that distinguish linear accessibility from nonlinear
-  recoverability.
-- A **formal statistical analysis** that separates inferential effects
-  (two-way ANOVA) from descriptive decompositions and hypothesis-generating
-  correlations.
-- Evidence that, in this setting, **algorithm identity dominates
-  representation identity**, with behaviour-policy divergence and market regime
-  offering a plausible mechanism that we do not claim to have established.
+1. **Controlled representation–decision analysis.** We disentangle information
+   availability, representation encoding, and downstream decision optimization
+   in a 4 × 4 × 10 representation × decision-algorithm experiment with fixed
+   transitions and evaluation, plus feature- and latent-dimension sweeps.
+2. **Representation-information characterisation.** We combine linear,
+   nonlinear, reconstruction, effective-rank, CKA, and perturbation diagnostics
+   to separate information accessibility from downstream trading utility.
+3. **Statistical evidence on decision optimization.** We show that
+   decision-algorithm identity is the strongest robust determinant of utility
+   in the tested setting (F(3,144) = 9.05, p < .0001, η² = .142), while
+   representation identity is marginal (p = .067) and the interaction is not
+   statistically established (p = .206).
+4. **Regime-dependent divergence and exposure mechanism.** We show that the
+   association between behaviour-policy divergence and utility changes sharply
+   across market regimes, and that representation-space risk information can
+   instead be exploited through adaptive exposure control.
+5. **Risk-aware constructive extension.** We evaluate exposure-only and
+   continuous hybrid policies across SPY, CSI300 and NIFTY, with 10-seed
+   validation, input ablations, transaction-cost robustness, and temporal
+   permutation controls.
 
 ---
 
@@ -525,26 +542,45 @@ adaptive exposure.
 
 ### 4.10 Validation of the hybrid result
 
-We validate with 10 seeds (not 3), paired bootstrap confidence intervals,
-transaction-cost robustness, out-of-sample sub-periods, an input ablation, and
-a no-look-ahead permutation control.
+The §4.9 numbers are a 3–5-seed development analysis; we therefore treat the
+following 10-seed experiment as the **primary validation** of the hybrid rather
+than relying on the earlier point estimate (the exploratory headline NIFTY
+value of 1.203 is superseded by the validated 1.074). Validation covers 10
+seeds, **two distinct sources of uncertainty** (stochastic training and the
+finite test path), transaction-cost robustness, out-of-sample sub-periods, an
+input ablation, an OOD-vs-volatility diagnostic, and a temporal permutation
+control.
 
-**10-seed Sharpe (mean) and paired hybrid − buy-and-hold difference (5,000
-resamples over identical test dates):**
+**10-seed Sharpe (mean) and finite-path paired hybrid − buy-and-hold
+difference (5,000 date-block resamples over identical test dates):**
 
-| market | BH | adaptive | hybrid | paired Δ (95% CI) |
+| market | BH | adaptive | hybrid | paired Δ (date-block 95% CI) |
 |---|---|---|---|---|
 | SPY | .784 | .941 | .905 | +.121 [−.059, .294] |
 | CSI300 | −.352 | −.350 | −.337 | +.016 [−.020, .053] |
 | NIFTY | 1.006 | 1.028 | 1.074 | +.096 [−.044, .234] |
 
-The hybrid advantage over buy-and-hold is **directionally consistent across
-all three markets and 10 seeds**, and survives both sub-periods (2021–22 and
-2023–24) on NIFTY and CSI300 and the 2021–22 period on SPY, and cost levels up
-to 10 bp (e.g. NIFTY 1.022 vs 1.000 at 10 bp). **However, the paired Sharpe
-difference is not statistically significant at the 5% level on the single
-four-year test period** (all CIs include zero): the result is a consistent,
-economically meaningful improvement, not an established edge on this horizon.
+**Training vs test-path uncertainty.** We separate (i) *stochastic training*
+uncertainty (the 10 independent seeds, with buy-and-hold a fixed path) from
+(ii) *finite test-path* uncertainty (the date-block bootstrap above). Seed-level
+paired differences Δ_s = Sharpe_hybrid,s − Sharpe_BH, with a seed bootstrap
+(10,000 resamples of the 10 Δ_s), a Wilcoxon signed-rank test, and a sign test:
+
+| market | mean Δ | SD | seed-bootstrap 95% CI | Wilcoxon p | sign (positive) |
+|---|---|---|---|---|---|
+| SPY | +.121 | .039 | [+.096, +.141] | .002 | 10/10 |
+| CSI300 | +.015 | .077 | [−.030, +.062] | .695 | 5/10 |
+| NIFTY | +.068 | .138 | [−.013, +.151] | .193 | 6/10 |
+
+On SPY the hybrid's advantage over buy-and-hold is **seed-robust** (all 10
+seeds positive; Wilcoxon p = .002), yet the finite-path date-block interval is
+wider and includes zero ([−.059, .294]) — the gain is consistent across training
+runs but small relative to the noise of a single four-year path. On NIFTY and
+CSI300 the seed-level difference is not significant (6/10 and 5/10 positive).
+We therefore report the hybrid's advantage as **directionally consistent and
+nontrivial in magnitude, but not statistically established on this horizon**;
+seed-level intervals quantify training uncertainty, date-block intervals
+quantify path uncertainty.
 
 **Input ablation (10 seeds):** OOD distance is the most valuable and robust
 at-t input — best on all three markets, and dramatically so on CSI300
@@ -555,12 +591,24 @@ This refines the §4.8 pathway: representation-distance (OOD) information is the
 key exposure-control signal, with volatility timing valuable only where
 positive drift exists.
 
-**Permutation control (no-look-ahead check):** shuffling the learned α across
-dates (destroying its time alignment, keeping its distribution) reduces the
-hybrid Sharpe on SPY (.905 → .848) and NIFTY (1.074 → 1.011) but does not
+**Is OOD just a volatility proxy?** OOD distance correlates strongly with
+contemporaneous volatility (Pearson r = .72 SPY, .84 NIFTY, .78 CSI300 on
+train+val), and also with forward 5-day volatility (.55/.67/.52) and drawdown
+state (−.67/−.71/−.38); it is **not** orthogonal to volatility. However, the
+ablation shows the two inputs behave differently — on CSI300 OOD is the best
+input (−.124) while volatility is the worst (−.434) — so OOD carries information
+beyond contemporaneous volatility, concentrated in large distribution-shift
+states. We state this plainly rather than claiming OOD is a distinct signal.
+
+**Permutation control (temporal-alignment check):** shuffling the learned α
+across dates (destroying its time alignment, keeping its distribution) reduces
+the hybrid Sharpe on SPY (.905 → .848) and NIFTY (1.074 → 1.011) but does not
 eliminate it. The at-t timing contributes a modest real increment (~.06 Sharpe);
-the remainder comes from the blend structure recovering exposure. This confirms
-the timing is genuine, not an accidental look-ahead artifact.
+the remainder comes from the blend structure recovering exposure. This supports
+a genuine contribution from temporal alignment; combined with the point-in-time
+feature construction, expanding normalization, frozen encoders, and strict
+train/validation/test separation, it provides a check against accidental timing
+artifacts (it does not by itself prove the absence of look-ahead).
 
 ### 4.11 The exposure family on the risk–return plane
 
@@ -585,10 +633,11 @@ Sharpe change must therefore come from **time-varying** exposure.
 On SPY and NIFTY the adaptive and hybrid points lie **above the buy-and-hold
 ray** (higher return per unit risk) and the hybrid is Pareto-non-dominated in
 the (volatility, return) plane — on NIFTY it attains the highest Sharpe with a
-return close to buy-and-hold and much lower volatility. On CSI300 the frontier
-is **degenerate**: the flat (zero-exposure) policy Pareto-dominates everything
-because no policy creates positive return, so the improvement there reduces to
-loss reduction. `paper/risk_return_frontier.png` shows the map.
+return close to buy-and-hold and much lower volatility. On CSI300 the
+**evaluated risk–return set is degenerate over this test period**: the flat
+(zero-exposure) policy Pareto-dominates everything because no policy creates
+positive return, so the improvement there reduces to loss reduction.
+`paper/risk_return_frontier.png` shows the map.
 
 **Finding.** The adaptive and hybrid policies shift the realized risk–return
 trade-off relative to buy-and-hold, with the hybrid providing a favorable
@@ -727,7 +776,7 @@ statistically significant at 5% on the single four-year test period.
    include zero).
 6. **Cross-market CSI300 results** were close to unsolvable under the tested
    protocol, limiting conclusions about representation transfer; its exposure
-   frontier is degenerate (flat dominates).
+   evaluated risk–return set is degenerate over the test period (flat dominates).
 7. **CQL behaviour depends materially on implementation/regularization
    choices**; the main-table CQL is the regularized variant.
 8. **The regime-gated mechanism is market-specific**: the gate learns a
@@ -796,7 +845,28 @@ observed collapse and materially improved performance. This demonstrates
 substantial sensitivity of CQL to actor regularization under our implementation
 and dataset; it is not a general claim that CQL is unstable.
 
-## Appendix B — artifact index
+## Appendix B — development vs validation
+
+To make the development/validation separation explicit (and guard against the
+appearance of tuning on the final test), the following decisions were fixed
+before the 10-seed validation run:
+
+| component | development (exploratory) | validation (primary, reported) |
+|---|---|---|
+| representation | predictive / contrastive, 3 seeds | frozen, 1 seed encoder |
+| feature & latent sweeps | 10 seeds (separate axis) | not revisited |
+| hybrid functional form | a = e + α(1 − e) selected | frozen |
+| α inputs | {risk, OOD, volatility} selected | frozen (ablation is diagnostic only) |
+| α architecture | 3-parameter linear+sigmoid | frozen |
+| seeds for hybrid | 3 (development), 5 (frontier) | **10 new/seeded runs** |
+| test period | 2021–2024 | 2021–2024 (unchanged) |
+| cost assumption | 0 bp for the map | 0/1/5/10 bp robustness |
+| endpoint (oracle) | look-ahead, upper bound only | reported as a bound |
+
+The headline hybrid numbers quoted in the abstract and conclusion are the
+10-seed validation values, not the exploratory 3–5-seed values.
+
+## Appendix C — artifact index
 
 All tables are generated by scripts under `scripts/` and written to
 `data/interpret/`:
@@ -811,6 +881,9 @@ All tables are generated by scripts under `scripts/` and written to
 - `rep_cross_market.csv` — SPY → CSI300 transfer.
 - `rep_bootstrap_ci.csv`, `rep_contrasts.csv`, `rep_anova.csv` — statistics.
 - `rep_cql_ablation.csv` — CQL regularization ablation.
+- `rep_hybrid_validate.csv`, `rep_hybrid_seedstats.csv` — hybrid 10-seed
+  validation and seed-level paired inference.
+- `rep_ood_diagnostic.csv` — OOD-vs-volatility/return/drawdown associations.
 - `paper/rep_mechanism_schematic.png` — Figure 1.
 
 ## References
@@ -856,3 +929,26 @@ All tables are generated by scripts under `scripts/` and written to
   dimensionality. EUSIPCO.
 - van den Oord, A., Li, Y., & Vinyals, O. (2018). Representation learning with
   contrastive predictive coding. arXiv:1807.03748.
+
+Quantitative-finance, statistics, and regime references:
+
+- Bailey, D. H., & López de Prado, M. (2014). The deflated Sharpe ratio:
+  correcting for selection bias, backtest overfitting, and non-normality.
+  Journal of Portfolio Management.
+- Bollen, N. P. B., & Whaley, R. E. (2004). Does net buying pressure affect the
+  shape of implied volatility functions? Journal of Finance.
+- Fama, E. F., & French, K. R. (1993). Common risk factors in the returns on
+  stocks and bonds. Journal of Financial Economics.
+- Hamilton, J. D. (1989). A new approach to the economic analysis of
+  nonstationary time series and the business cycle. Econometrica (regime
+  switching / Markov-switching models).
+- Lo, A. W. (2002). The statistics of Sharpe ratios. Financial Analysts Journal.
+- Markowitz, H. (1952). Portfolio selection. Journal of Finance (mean–variance
+  frontier, the benchmark against which we deliberately limit our claims).
+- Liu, W., Wang, X., Owens, J., & Li, Y. (2020). Energy-based
+  out-of-distribution detection for reliable deep learning. ECCV (OOD scoring,
+  related to our representation-space distance measure).
+- Zhang, Z., Zohren, S., & Roberts, S. (2020). Deep reinforcement learning for
+  trading. Journal of Financial Data Science (survey; positioning).
+- Ang, A., & Bekaert, G. (2002). International asset allocation with regime
+  shifts. Review of Financial Studies (regime-dependent allocation).
