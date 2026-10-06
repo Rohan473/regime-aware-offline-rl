@@ -332,9 +332,9 @@ is controlled.
 
 ### 4.5 Can the mechanism be exploited? A regime-gated policy
 
-If divergence is useful in bull and costly in bear/crisis, an offline RL policy
-should be able to *learn* when to deviate. We test this constructively with a
-regime-gated policy
+If policy divergence becomes increasingly costly as market conditions
+deteriorate, an offline RL policy should learn when to deviate and when to
+remain conservative. We test this constructively with a regime-gated policy
 
 a_t = clip(a_beh_t + λ_t · d_t),
 
@@ -355,11 +355,15 @@ bull, .1 otherwise), all on the same frozen representations and transitions.
 | **gated, ρ = 1 (proposed)** | **.757 (.06) / .759 (.06)** |
 | oracle (look-ahead) | .758 (.12) / .781 (.55) |
 
-The learned gate is regime-dependent, as H4 predicts: mean λ is highest in bull
-(.19–.20) and lowest in bear (.09–.13). The uncertainty constraint protects the
-risky regimes (crisis Sharpe 3.59 vs A2C 1.56; bear 1.38 vs A2C .83) at a small
-cost in bull, and the proposed policy beats both fixed extremes with the lowest
-seed variance (std ≈ .06 vs .09–.39) and matches the look-ahead oracle.
+On SPY, the learned gate is regime-dependent, as H4 predicts: mean λ is highest
+in bull (.19–.20) and lowest in bear (.09–.13). The uncertainty constraint
+protects the risky regimes (crisis Sharpe 3.59 vs A2C 1.56; bear 1.38 vs A2C
+.83) at a small cost in bull. The proposed policy beats both fixed extremes
+with the lowest seed variance (std ≈ .06 vs .09–.39) and performs comparably to
+the look-ahead oracle on the predictive representation (.757 vs .758), while
+remaining below it on the contrastive representation (.759 vs .781). (As §4.5's
+cross-market note below shows, this regime prior does not transfer unchanged to
+other markets.)
 
 **Finding (constructive support for the mechanism).** An offline RL system can
 learn when it is safe to deviate from observed behavior and when to stay
@@ -440,8 +444,8 @@ Three findings:
 **Finding.** An uncertainty- and risk-state-aware exposure policy can improve
 the risk/return trade-off without requiring directional skill, beating
 buy-and-hold on Sharpe while reducing drawdown on positive-drift markets. This is the
-constructive complement to the §4.6 diagnosis: the exploitable margin is in
-exposure/risk control, not in direction prediction.
+constructive complement to the §4.6 diagnosis: the tested exploitable margin is
+in exposure/risk control rather than direction prediction.
 
 **Boundary condition (CSI300).** The exposure policy reproduces buy-and-hold
 there (−.355 ≈ −.352): exposure timing can improve the risk/return trade-off
@@ -596,7 +600,8 @@ efficient-frontier statement would require that stronger test).
 **Cross-market (CSI300, NIFTY).** The gate consistently learns a
 bull-vs-bear/crisis asymmetry in every market (λ higher in bull), but whether
 that prior is *correct* is market-specific. On SPY it is right (gating beats
-both extremes and matches the oracle); on CSI300 the test period is
+both extremes and performs comparably to the oracle on the predictive
+representation); on CSI300 the test period is
 unsolvable (all variants negative, a crisis-driven rally); on NIFTY the
 bear/crisis penalty is wrong because crisis deviation pays (A2C crisis 2.86 vs
 behaviour −0.71), so the gate loses to unconstrained A2C (.622 vs .705).
@@ -665,10 +670,10 @@ stochastic variability but may still be insufficient to detect moderate
 interaction effects. We do not attempt to rescue the interaction statistically
 (no seed selection, no representation cherry-picking, no specification search).
 
-### 5.3 Figure 1 — empirical mechanism hypothesis
+### 5.3 Figure 1 — decision-relevant risk/exposure pathway
 
 ```
-                    EMPIRICAL OBSERVATIONS
+                    OBSERVED ASSOCIATIONS
                             |
         +-------------------+-------------------+
         v                   v                   v
@@ -684,17 +689,20 @@ interaction effects. We do not attempt to rescue the interaction statistically
                   |                             |
                   +-------------+---------------+
                                 v
-                      Research hypothesis
+               Decision-relevant risk/exposure pathway
 ```
 
 Solid arrows are observed associations; dashed arrows (in the manuscript
-figure) denote the proposed, untested mechanism.
+figure) denote the mechanism tested constructively in §4.5–4.9: it is
+consistent across the tested markets, but the paired Sharpe advantage is not
+statistically significant at 5% on the single four-year test period.
 
-> **Empirical mechanism hypothesis.** Observed behaviour-policy divergence is
-> associated at the algorithm level with representation sensitivity, while
-> regime-conditioned analyses suggest that the utility of divergence may depend
-> on market regime. These relationships are descriptive and do not establish
-> mediation or causality.
+> **Tested mechanism (with caveat).** Observed behaviour-policy divergence is
+> associated at the algorithm level with representation sensitivity; the
+> divergence–utility association is strongly regime-dependent; and a
+> representation-space risk pathway (OOD/volatility) supports adaptive exposure
+> control. These relationships are descriptive/associational (n = 4 for the
+> divergence–sensitivity link) and do not establish mediation or causality.
 
 ---
 
