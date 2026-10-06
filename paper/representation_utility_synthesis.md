@@ -167,17 +167,17 @@ the n = 4 algorithm-level observation, we fit, on the existing seed-level data
 - Stage 2 (secondary): seed-level utility on divergence, controlling for
   representation and algorithm — n = 48.
 
-Stage 1 is **significant**: the divergence × regime interaction is large
-(joint chi2(2) = 80.9, p = 2.7e-18). Absolute per-regime slopes (reference =
-bear): bull +0.04, bear -1.04, crisis -4.05 — near zero in bull, increasingly
-negative in bear and (strongly) crisis. Stage 2 is **null**: divergence does not
-predict utility once algorithm identity is controlled (b1 = +.135, p = .446;
-JS variant +.264, p = .567).
+Stage 1 is **significant** (joint chi2(2) = 80.9, p = 2.7e-18). We find
+evidence that the association between behaviour-policy divergence and utility
+is strongly regime-dependent: approximately neutral in bull (absolute slope
++0.04), negatively associated in bear (-1.04), and most strongly negative in
+crisis (-4.05). Stage 2 is **null**: divergence does not predict utility once
+representation and algorithm identity are controlled (b1 = +.135, p = .446;
+JS variant +.264, p = .567), so this is not a causal effect of divergence.
 
-Verdict: *evidence is consistent with behavior-policy divergence being a
-regime-dependent moderator of representation utility.* Divergence alone is not
-a predictor; the mechanism operates through the regime interaction, which
-survives a granular clustered test.
+Verdict: *the divergence-utility association is strongly regime-dependent,
+becoming increasingly negative from bull to bear to crisis, while the bull
+association is approximately flat.* Divergence alone is not a predictor.
 
 ---
 

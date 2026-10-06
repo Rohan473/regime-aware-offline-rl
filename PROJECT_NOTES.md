@@ -5010,6 +5010,34 @@ FIGURE HIERARCHY (recommended):
   divergence x regime -> secondary/appendix figure (belongs to the earlier
   rep/algorithm mechanism, distinct from the exposure pathway).
 
+### 8.24 FINAL H4 WORDING + CONTRIBUTION MESSAGE (2026-09-15)
+-------------------------------------------------------------------------------
+Corrected H4 reading (not "beneficial in bull, harmful in crisis"): the
+association between behavior-policy divergence and utility is strongly
+regime-dependent - approximately NEUTRAL in bull (absolute slope +0.04),
+negatively associated in bear (-1.04), MOST strongly negative in crisis
+(-4.05); joint chi2(2)=80.9, p=2.7e-18. Qualifier: divergence alone does not
+predict utility once representation and algorithm identity are controlled
+(beta=+.135, p=.446) - NOT a causal effect of divergence. Applied to manuscript
+SS4.4/abstract and synthesis SS4.4.
+
+DE-EMPHASISE "regime-aware" as the headline (it is not the central mechanism).
+The mechanism is: representation -> distributional/risk state -> exposure
+control, with OOD distance the most robust at-t input; volatility is
+market-dependent. Hybrid described as risk/risk-state-aware, not "regime-aware".
+
+FINAL CONTRIBUTION (abstract close + conclusion):
+  "Offline financial RL does not need reliable directional prediction to extract
+  decision-relevant information from learned representations. In the tested
+  setting, that information is more useful for adaptive exposure and risk
+  control than for directional trading, while downstream algorithm choice
+  remains a stronger determinant of utility than representation identity."
+
+FIGURES (frozen): Fig1 decomposition (rep -> algorithm -> utility); Fig2
+mechanism (rep -> directional(terminates)/risk-state -> exposure -> hybrid);
+Fig3 OOD/vol ablations + permutation; Fig4 risk-return map; divergence x regime
+= appendix/secondary.
+
 ------------------------------------------------------------------------------
 END OF NOTES
 --------------------------------------------------------------------------------

@@ -42,10 +42,15 @@ representation identity in the tested setting.** The original representation ×
 decision-algorithm policies do not exceed a buy-and-hold baseline; subsequent
 exposure-only and hybrid policies improve the tested risk–return trade-off,
 although their paired Sharpe advantages are not statistically significant over
-the single four-year test period. The contribution is an understanding of the
-mechanics and evaluation of offline financial RL — including that the
-exploitable margin is exposure/risk control rather than direction prediction —
-not a profitable trading strategy.
+the single four-year test period.
+
+**Summary.** Offline financial RL does not need reliable directional prediction
+to extract decision-relevant information from learned representations. In the
+tested setting, that information is more useful for adaptive exposure and risk
+control than for directional trading, while downstream algorithm choice remains
+a stronger determinant of utility than representation identity. The
+contribution is an understanding of the mechanics and evaluation of offline
+financial RL, not a profitable trading strategy.
 
 ---
 
@@ -308,13 +313,15 @@ on the existing seed-level data (no new training), two pre-registered models:
 - Stage 2 (secondary): seed-level utility on divergence, controlling for
   representation and algorithm — n = 48.
 
-Stage 1 is **significant**: the divergence × regime interaction is large
-(joint χ²(2) = 80.9, p = 2.7e-18). The absolute per-regime divergence–utility
-slopes (reference = bear) are **bull +0.04, bear −1.04, crisis −4.05** — the
-slope is near zero in bull and increasingly negative in bear and (strongly)
-crisis. Stage 2 is **null**: divergence does not predict utility once algorithm
-identity is controlled (β₁ = +.135, p = .446; JS-divergence variant +.264,
-p = .567).
+Stage 1 is **significant** (joint χ²(2) = 80.9, p = 2.7e-18). We find evidence
+that the association between behaviour-policy divergence and utility is
+strongly regime-dependent: divergence is approximately neutral in bull regimes
+(absolute slope **+0.04**), negatively associated with utility in bear regimes
+(**−1.04**), and most strongly negative in crisis regimes (**−4.05**). Stage 2
+is **null**: divergence alone does not predict utility once representation and
+algorithm identity are controlled (β = +.135, p = .446; JS-divergence variant
++.264, p = .567), so this result should not be interpreted as a causal effect of
+divergence.
 
 Behaviour-policy divergence and regime conditioning provide a plausible
 explanation for why some algorithms appear more representation-sensitive. The
@@ -430,9 +437,9 @@ Three findings:
    vs .909, maxDD −.109 vs −.114; NIFTY .971 vs 1.033, maxDD −.046 vs −.081) —
    it is not presented as superior, but as the explicit trade-off lever.
 
-**Finding.** An uncertainty- and regime-aware exposure policy can improve the
-risk/return trade-off without requiring directional skill, beating buy-and-hold
-on Sharpe while reducing drawdown on positive-drift markets. This is the
+**Finding.** An uncertainty- and risk-state-aware exposure policy can improve
+the risk/return trade-off without requiring directional skill, beating
+buy-and-hold on Sharpe while reducing drawdown on positive-drift markets. This is the
 constructive complement to the §4.6 diagnosis: the exploitable margin is in
 exposure/risk control, not in direction prediction.
 
@@ -753,9 +760,15 @@ buy-and-hold's participation while retaining the risk timing (NIFTY Sharpe
 risk–return trade-off above the buy-and-hold ray. This improvement is
 directionally consistent across markets and seeds and survives cost robustness,
 but its paired Sharpe advantage is not statistically significant at 5% on the
-single test period, and it is not an efficient-frontier claim. The findings
-describe the tested offline environment and do not demonstrate market-beating
-performance or a causal effect of policy divergence.
+single test period, and it is not an efficient-frontier claim. The strongest
+final message is: **offline financial RL does not need reliable directional
+prediction to extract decision-relevant information from learned
+representations — in the tested setting that information is more useful for
+adaptive exposure and risk control than for directional trading, while
+downstream algorithm choice remains a stronger determinant of utility than
+representation identity.** The findings describe the tested offline environment
+and do not demonstrate market-beating performance or a causal effect of policy
+divergence.
 
 ---
 
